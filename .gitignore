@@ -216,3 +216,19 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Python virtual environment
+.venv/
+
+# Python generated files
+__pycache__/
+*.py[cod]
+
+# Environment / secrets
+.env
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/

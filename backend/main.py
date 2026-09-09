@@ -1,4 +1,8 @@
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from backend.agent import ConversationAgent
 from backend.models import ChatRequest, ChatResponse
@@ -11,6 +15,13 @@ app = FastAPI(
 )
 
 agent = ConversationAgent()
+frontend_directory = Path(__file__).resolve().parent.parent / "frontend"
+app.mount("/static", StaticFiles(directory=frontend_directory), name="static")
+
+
+@app.get("/", include_in_schema=False)
+def index():
+    return FileResponse(frontend_directory / "index.html")
 
 
 @app.get("/health")

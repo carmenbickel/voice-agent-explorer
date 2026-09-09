@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Voice Agent Explorer</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <main class="workspace">
+    <header>
+      <p class="eyebrow">LEARN THROUGH CONVERSATION</p>
+      <h1>Voice Agent Explorer<span aria-hidden="true">.</span></h1>
+      <p class="intro">Explore how AI voice bots listen, understand, and respond.</p>
+    </header>
+    <section class="chat" aria-label="Chat with the assistant">
+      <div class="chat-heading"><h2>Your conversation</h2><span>Text chat</span></div>
+      <div id="messages" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions">
+        <article class="message assistant">
+          <p class="sender">Assistant</p>
+          <p class="content">What would you like to explore? Ask about speech recognition, voice activity detection, or how a voice bot works.</p>
+        </article>
+      </div>
+      <div class="feedback">
+        <p id="status" role="status"></p>
+        <p id="error" role="alert" hidden></p>
+      </div>
+      <form id="chat-form">
+        <label for="message">Your question</label>
+        <div class="composer">
+          <input id="message" name="message" type="text" placeholder="What is voice activity detection?" autocomplete="off" required>
+          <button id="send" type="submit">Send <span aria-hidden="true">↑</span></button>
+        </div>
+      </form>
+    </section>
+    <p class="session-note">One shared local session. Restarting the backend clears the assistant’s memory; reloading this page clears only the visible messages.</p>
+  </main>
+</body>
+</html>

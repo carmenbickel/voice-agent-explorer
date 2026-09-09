@@ -66,6 +66,18 @@ class ChatTests(unittest.TestCase):
         self.assertEqual(self.client.get("/health").json(), {"status": "ok"})
         self.assertEqual(self.client.post("/chat", json={}).status_code, 422)
 
+    def test_browser_page_and_assets_are_served(self):
+        page = self.client.get("/")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn("text/html", page.headers["content-type"])
+        for path, content_type in [("/static/app.js", "javascript"),
+                                   ("/static/styles.css", "text/css")]:
+            with self.subTest(path=path):
+                self.assertIn(path, page.text)
+                asset = self.client.get(path)
+                self.assertEqual(asset.status_code, 200)
+                self.assertIn(content_type, asset.headers["content-type"])
+
     @patch("backend.ollama_client.httpx.post")
     def test_ollama_errors(self, post):
         request = httpx.Request("POST", "http://ollama/api/chat")

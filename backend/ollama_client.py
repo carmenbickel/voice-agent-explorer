@@ -18,13 +18,13 @@ class OllamaError(Exception):
     """Raised when communication with Ollama fails."""
 
 
-def generate_response(prompt: str) -> str:
+def generate_response(messages: list[dict[str, str]]) -> str:
     try:
         response = httpx.post(
-            f"{OLLAMA_BASE_URL}/api/generate",
+            f"{OLLAMA_BASE_URL}/api/chat",
             json={
                 "model": OLLAMA_MODEL,
-                "prompt": prompt,
+                "messages": messages,
                 "stream": False,
             },
             timeout=60.0,
@@ -33,9 +33,12 @@ def generate_response(prompt: str) -> str:
         response.raise_for_status()
 
         data = response.json()
-        return data["response"]
+        content = data["message"]["content"]
+        if not isinstance(content, str):
+            raise ValueError("Ollama response content must be text.")
+        return content
 
-    except (httpx.HTTPError, KeyError) as exc:
+    except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
         raise OllamaError(
             "Unable to get a response from Ollama."
         ) from exc

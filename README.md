@@ -32,3 +32,21 @@ frontend/
 knowledge/
 ARCHITECTURE.md
 requirements.txt
+```
+
+## Run the backend
+
+Install `requirements.txt`, start Ollama with the `llama3.2:3b` model
+available, and run `uvicorn backend.main:app --reload` from the repository root.
+`OLLAMA_BASE_URL` and `OLLAMA_MODEL` can override the defaults.
+
+`POST /chat` accepts `{"message": "What is VAD?"}` and returns
+`{"response": "..."}`. Send `{"message": "Why do we need it?"}` next to
+ask a follow-up using the previous turn.
+
+FastAPI delegates to `ConversationAgent`, which sends its system prompt and
+conversation history to Ollama. This local version has one shared, in-memory
+session per backend process. Run with one worker; restarting the backend clears
+history. All callers of that process share the same conversation.
+
+Run automated checks with `python -m unittest discover -s tests -v`.

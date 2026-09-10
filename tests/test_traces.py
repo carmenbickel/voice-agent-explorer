@@ -38,7 +38,12 @@ class TraceFlowTests(unittest.TestCase):
         self.assertEqual(stages, [
             "session resolved", "retrieval", "model", "response assembly"])
         statuses = {e["stage"]: e["status"] for e in trace["events"]}
-        self.assertEqual(statuses["retrieval"], "skipped")
+        # Retrieval runs with the local demo index; "Hello" has no matching
+        # knowledge and reports no evidence rather than skipped假 stages.
+        retrieval = next(
+            event for event in trace["events"] if event["stage"] == "retrieval")
+        self.assertEqual(retrieval["status"], "executed")
+        self.assertIn("detail", retrieval)
         self.assertEqual(statuses["model"], "executed")
         # The panel must show real durations for executed stages, never fake ones.
         self.assertIn("duration_ms", next(e for e in trace["events"] if e["stage"] == "model"))

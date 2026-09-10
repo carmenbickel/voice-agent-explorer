@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -11,6 +11,7 @@ class ChatResponse(BaseModel):
     response: str
     turn_id: Optional[str] = None
     trace_id: Optional[str] = None
+    sources: Optional[List[str]] = None
 
 
 class DemoCustomerSelection(BaseModel):

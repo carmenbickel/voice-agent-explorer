@@ -9,8 +9,11 @@ SYSTEM_PROMPT = (
 )
 
 
-def run_chat_turn(session: Session, message: str) -> str:
-    """Run one serialized turn for this session and record it on success."""
+def run_chat_turn(session: Session, message: str, evidence_text: str = None) -> str:
+    """Run one serialized turn for this session and record it on success.
+
+    An optional evidence block grounds the answer in knowledge articles with
+    citation instructions (issue C1)."""
     # Turns of one session are serialized; independent sessions progress in
     # parallel because each session owns its own lock.
     with session.lock:
@@ -20,6 +23,10 @@ def run_chat_turn(session: Session, message: str) -> str:
             + session.history
             + [{"role": "user", "content": message}]
         )
+        if evidence_text:
+            # Evidence must sit directly with the current question; earlier
+            # history stays untouched to avoid mixing customers' context.
+            messages.append({"role": "system", "content": evidence_text})
         response = generate_response(messages)
         # Failed requests must not leave an unanswered turn in history.
         session.history = (
@@ -28,3 +35,4 @@ def run_chat_turn(session: Session, message: str) -> str:
                {"role": "assistant", "content": response}]
         )
         return response
+

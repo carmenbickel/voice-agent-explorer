@@ -1,0 +1,171 @@
+{
+  "description": "Document-only RAG baseline over the demo wiki. Metrics measure retrieval only; answer quality is not simulated here.",
+  "generator": "baseline-eval-v1",
+  "results": [
+    {
+      "abstains": false,
+      "expected": [
+        "article-returns-policy"
+      ],
+      "expected_in_context": 1,
+      "question": "How long do I have to return unworn shoes?",
+      "recall": 1.0,
+      "retrieved": [
+        "article-returns-policy",
+        "article-returns-policy"
+      ],
+      "topic": "policy:returns"
+    },
+    {
+      "abstains": false,
+      "expected": [
+        "article-exchanges-policy"
+      ],
+      "expected_in_context": 1,
+      "question": "Can I exchange size 39 for a size 40 of the same product?",
+      "recall": 1.0,
+      "retrieved": [
+        "article-exchanges-policy"
+      ],
+      "topic": "policy:exchange"
+    },
+    {
+      "abstains": false,
+      "expected": [
+        "article-cancellation-policy"
+      ],
+      "expected_in_context": 1,
+      "question": "Can I cancel a shipped order?",
+      "recall": 1.0,
+      "retrieved": [
+        "article-cancellation-policy",
+        "article-shipping-overview"
+      ],
+      "topic": "policy:cancellation"
+    },
+    {
+      "abstains": false,
+      "expected": [
+        "article-shipping-overview"
+      ],
+      "expected_in_context": 1,
+      "question": "When do demo orders arrive?",
+      "recall": 1.0,
+      "retrieved": [
+        "article-returns-policy",
+        "article-shipping-overview"
+      ],
+      "topic": "policy:shipping"
+    },
+    {
+      "abstains": false,
+      "expected": [
+        "article-sizing-guide"
+      ],
+      "expected_in_context": 1,
+      "question": "Which EU sizes do Stepwise Shoes use?",
+      "recall": 1.0,
+      "retrieved": [
+        "article-sizing-guide",
+        "article-fit-and-comfort"
+      ],
+      "topic": "sizing"
+    },
+    {
+      "abstains": false,
+      "expected": [
+        "article-fit-and-comfort"
+      ],
+      "expected_in_context": 1,
+      "question": "How much space should toes have in new shoes?",
+      "recall": 1.0,
+      "retrieved": [
+        "article-fit-and-comfort"
+      ],
+      "topic": "fit"
+    },
+    {
+      "abstains": false,
+      "expected": [
+        "article-care-dfg-products"
+      ],
+      "expected_in_context": 1,
+      "question": "How should I clean inflatable waterproof hiking shoes?",
+      "recall": 1.0,
+      "retrieved": [
+        "article-care-dfg-products",
+        "article-fit-and-comfort"
+      ],
+      "topic": "care"
+    },
+    {
+      "abstains": false,
+      "expected": [
+        "article-waterproof-technology"
+      ],
+      "expected_in_context": 1,
+      "question": "Is the demo membrane breathable?",
+      "recall": 1.0,
+      "retrieved": [
+        "article-waterproof-technology"
+      ],
+      "topic": "technology"
+    },
+    {
+      "abstains": false,
+      "expected": [
+        "article-running-form"
+      ],
+      "expected_in_context": 1,
+      "question": "What kind of shoes fit short city runs?",
+      "recall": 1.0,
+      "retrieved": [
+        "article-running-form",
+        "article-fit-and-comfort",
+        "article-sizing-guide"
+      ],
+      "topic": "running"
+    },
+    {
+      "abstains": false,
+      "expected": [
+        "article-faq-demo"
+      ],
+      "expected_in_context": 1,
+      "question": "Are payments real in this demo?",
+      "recall": 1.0,
+      "retrieved": [
+        "article-faq-demo",
+        "article-shipping-overview"
+      ],
+      "topic": "demo-limits"
+    },
+    {
+      "abstains": false,
+      "expected": [
+        "article-support-handover"
+      ],
+      "expected_in_context": 1,
+      "question": "What happens if my problem is more complex than a return?",
+      "recall": 1.0,
+      "retrieved": [
+        "article-support-handover"
+      ],
+      "topic": "handover"
+    },
+    {
+      "abstains": true,
+      "expected": [],
+      "expected_in_context": 0,
+      "question": "Turquoise tie-dye wedding shoes with 3-inch heels",
+      "recall": 1.0,
+      "retrieved": [],
+      "topic": "abstention"
+    }
+  ],
+  "summary": {
+    "abstention_respected": true,
+    "mean_recall": 1.0,
+    "questions": 12
+  }
+}

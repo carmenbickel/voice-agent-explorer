@@ -32,6 +32,7 @@ _TOOL_SPEC = {
                        "condition": str},
     "propose_exchange": {"order_id": str, "variant_id": str,
                          "replacement_variant_id": str, "condition": str},
+    "propose_handover": {"unresolved_issue": str},
 }
 
 

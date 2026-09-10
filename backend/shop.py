@@ -169,6 +169,17 @@ CREATE TABLE IF NOT EXISTS exchanges (
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_active_exchange
     ON exchanges(order_id, original_variant_id) WHERE state = 'requested';
+
+CREATE TABLE IF NOT EXISTS support_tickets (
+    id TEXT PRIMARY KEY,
+    customer_id TEXT NOT NULL REFERENCES customers(id),
+    order_id TEXT,
+    operation_id TEXT,
+    unresolved_issue TEXT NOT NULL,
+    attempted_steps TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'requested',
+    created_utc TEXT NOT NULL
+);
 """
 
 

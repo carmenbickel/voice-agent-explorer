@@ -79,7 +79,69 @@ BASELINE_SET = [
 EVAL_DIRECTORY = Path(__file__).resolve().parent.parent / "knowledge" / "eval"
 
 
-def evaluate(index, questions=None, limit=4, context_limit=4, embed=None):
+def evaluate_graph(index, graph, questions=None, limit=4, embed=None):
+    """Compare graph-assisted retrieval with the document-only baseline
+    (same corpus, questions, models, and context budget, issue C2)."""
+    import time as time_module
+    from backend import graph_rag
+    if questions is None:
+        questions = BASELINE_SET
+    results = []
+    expansion_sizes = []
+    for entry in questions:
+        started = time_module.monotonic()
+        graph_results = graph_rag.graph_assisted_chunks(
+            index, entry["question"], graph, limit=limit)
+        found = [chunk["article_id"] for chunk in graph_results]
+        document_baseline = retrieve(index, entry["question"], limit=limit)
+        document_found = [chunk["article_id"] for chunk in document_baseline]
+        latency_ms = round((time_module.monotonic() - started) * 1000, 2)
+        wants = entry.get("expect_articles", [])
+        results.append({
+            "topic": entry["topic"],
+            "graph_found": found,
+            "document_found": document_found,
+            "recall": _recall(wants, found),
+            "citation_support": all(
+                article in found for article in wants) if wants else 1.0,
+            "scope_ok": all(chunk.get("scope") == "public-shop"
+                            for chunk in graph_results),
+            "abstains": not found,
+            "expansion_size": len(set(found) - set(document_found)),
+            "latency_ms": latency_ms,
+        })
+        expansion_sizes.append(results[-1]["expansion_size"])
+    targeted = [result for entry, result in zip(questions, results)
+                if entry.get("expect_articles")]
+    document_results, _ = evaluate_document_only(index, questions=questions,
+                                                 limit=limit)
+    non_improvements = []
+    for entry, result in zip(questions, results):
+        document_recall = _recall(
+            entry.get("expect_articles", []), result["document_found"])
+        if entry.get("expect_articles") and result["recall"] < document_recall:
+            non_improvements.append(entry["topic"])
+    summary = {
+        "graph_questions": len(results),
+        "mean_recall": round(sum(result["recall"] for result in targeted)
+                             / max(1, len(targeted)), 3),
+        "abstention_respected": all(
+            result.get("abstains", False)
+            for entry, result in zip(questions, results)
+            if not entry.get("expect_articles")),
+        "mean_expansion_size": round(
+            sum(expansion_sizes) / max(1, len(expansion_sizes)), 3),
+        "non_improvements": non_improvements,
+    }
+    return results, summary, expansion_sizes
+
+
+def latency_value(latency_ms):
+    return latency_ms
+
+
+def evaluate_document_only(index, questions=None, limit=4, context_limit=4,
+                           embed=None):
     """Compute deterministic retrieval metrics over the baseline set."""
     if questions is None:
         questions = BASELINE_SET
@@ -114,13 +176,17 @@ def evaluate(index, questions=None, limit=4, context_limit=4, embed=None):
     return results, summary
 
 
+def evaluate(index, questions=None, limit=4, context_limit=4, embed=None):
+    return evaluate_document_only(index, questions=questions, limit=limit,
+                                  context_limit=context_limit, embed=embed)
+
 def _recall(targets, found):
     return round(len(set(targets) & set(found)) / len(targets), 3) if targets \
         else 1.0 if not found else 0.0
 
 
 def generate_report(index, embed=None, write=True):
-    results, summary = evaluate(index, embed=embed)
+    results, summary = evaluate(index)
     report = {
         "generator": "baseline-eval-v1",
         "description": (
@@ -130,6 +196,15 @@ def generate_report(index, embed=None, write=True):
         "summary": summary,
         "results": results,
     }
+    try:
+        from backend import graph_rag
+        graph = graph_rag.load_graph()
+        if graph["nodes"]:
+            graph_results, graph_summary, expansion = evaluate_graph(index, graph)
+            report["graph_summary"] = graph_summary
+            report["graph_expansion"] = expansion
+    except Exception:
+        report["graph_summary"] = {"error": "graph evaluation unavailable"}
     if write:
         EVAL_DIRECTORY.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")

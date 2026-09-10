@@ -1,6 +1,27 @@
 {
   "description": "Document-only RAG baseline over the demo wiki. Metrics measure retrieval only; answer quality is not simulated here.",
   "generator": "baseline-eval-v1",
+  "graph_expansion": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "graph_summary": {
+    "abstention_respected": true,
+    "graph_questions": 12,
+    "mean_expansion_size": 0.0,
+    "mean_recall": 1.0,
+    "non_improvements": []
+  },
   "results": [
     {
       "abstains": false,

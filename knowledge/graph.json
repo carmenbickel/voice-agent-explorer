@@ -1,0 +1,24 @@
+{
+  "nodes": [
+    {"id": "graph-node-summit", "type": "product", "label": "Trail Running"},
+    {"id": "graph-node-waterproof", "type": "feature", "label": "Waterproof membrane"},
+    {"id": "graph-node-returns", "type": "policy", "label": "Returns"},
+    {"id": "graph-node-exchanges", "type": "policy", "label": "Exchanges"},
+    {"id": "graph-node-cancellation", "type": "policy", "label": "Cancellation"},
+    {"id": "graph-node-shipping", "type": "policy", "label": "Shipping"},
+    {"id": "graph-node-sizing", "type": "article-family", "label": "Sizing and fit"},
+    {"id": "graph-node-care", "type": "article-family", "label": "Care instructions"},
+    {"id": "graph-node-running", "type": "article-family", "label": "Running guidance"}
+  ],
+  "edges": [
+    {"from": "graph-node-summit", "to": "graph-node-running", "relation": "guides", "article_id": "article-running-form", "article_version": 1},
+    {"from": "graph-node-waterproof", "to": "graph-node-care", "relation": "care_guide", "article_id": "article-waterproof-technology", "article_version": 1},
+    {"from": "graph-node-care", "to": "graph-node-care", "relation": "guides", "article_id": "article-care-dfg-products", "article_version": 1},
+    {"from": "graph-node-returns", "to": "graph-node-exchanges", "relation": "related_policy", "article_id": "article-exchanges-policy", "article_version": 1},
+    {"from": "graph-node-exchanges", "to": "graph-node-returns", "relation": "related_policy", "article_id": "article-returns-policy", "article_version": 1},
+    {"from": "graph-node-cancellation", "to": "graph-node-shipping", "relation": "related_policy", "article_id": "article-shipping-overview", "article_version": 1},
+    {"from": "graph-node-shipping", "to": "graph-node-cancellation", "relation": "related_policy", "article_id": "article-cancellation-policy", "article_version": 1},
+    {"from": "graph-node-sizing", "to": "graph-node-care", "relation": "guides", "article_id": "article-fit-and-comfort", "article_version": 1},
+    {"from": "graph-node-running", "to": "graph-node-care", "relation": "guides", "article_id": "article-sandals-care", "article_version": 1}
+  ]
+}

@@ -51,6 +51,27 @@ frontend_directory = Path(__file__).resolve().parent.parent / "frontend"
 app.mount("/static", StaticFiles(directory=frontend_directory), name="static")
 
 SESSION_NOT_ACTIVE = "Session is not active."
+CROSS_ORIGIN_REJECTED = "Cross-origin request rejected."
+CORS_SAFE_METHODS = ("GET", "HEAD", "OPTIONS")
+
+
+def assert_same_origin(http: Request) -> None:
+    """Same-origin/CSRF policy for state-changing cookie requests.
+
+    Requests without an Origin header (native clients, same-origin tests)
+    are allowed; a cross-site Origin is rejected with a non-disclosing 403.
+    """
+    origin = http.headers.get("origin")
+    if not origin:
+        return
+    host = http.headers.get("host")
+    allowed = set()
+    if host:
+        allowed.add(f"http://{host}")
+        allowed.add(f"https://{host}")
+    if origin in allowed:
+        return
+    raise HTTPException(status_code=403, detail=CROSS_ORIGIN_REJECTED)
 CUSTOMER_NOT_AVAILABLE = "Requested demo customer is not available."
 TRACE_NOT_AVAILABLE = "Trace is not available."
 PROPOSAL_NOT_AVAILABLE = "Proposal is not available."
@@ -131,6 +152,7 @@ def _record_stage(trace, stage: str, status: str, **extra) -> None:
 
 @app.post("/chat", response_model=ChatResponse)
 def chat(request: ChatRequest, http: Request):
+    assert_same_origin(http)
     session = resolve_session(http)
     turn_id = secrets.token_urlsafe(12)
     trace = _begin_trace(session, turn_id)
@@ -244,6 +266,14 @@ def chat(request: ChatRequest, http: Request):
             detail=str(exc),
         ) from exc
 
+    except Exception:
+        # Any unexpected failure stays generic and recoverable; traces
+        # record the failure without user content (hardening, issue E2).
+        _record_stage(trace, "model", "failed")
+        _record_stage(trace, "response assembly", "skipped",
+                      detail="internal model error")
+        raise HTTPException(status_code=503, detail="Model unavailable")
+
 
 @app.get("/traces/{trace_id}")
 def read_trace(trace_id: str, http: Request):
@@ -260,6 +290,7 @@ def read_trace(trace_id: str, http: Request):
 @app.post("/actions/{proposal_id}/confirm")
 def confirm_action(proposal_id: str, http: Request):
     """The ONLY write path: rechecks quote, ownership, quantity, stock."""
+    assert_same_origin(http)
     session = resolve_session(http)
     connection = shop_connection()
     try:
@@ -325,7 +356,8 @@ def read_operation(operation_id: str, http: Request):
 
 
 @app.post("/sessions")
-def create_session(response: Response, selection: Optional[DemoCustomerSelection] = Body(default=None)):
+def create_session(http: Request, response: Response, selection: Optional[DemoCustomerSelection] = Body(default=None)):
+    assert_same_origin(http)
     """Establish an anonymous or explicit local demo-customer session."""
     requested = selection.customer_id if selection else None
     session = manager.create()
@@ -349,6 +381,7 @@ def list_demo_customers():
 
 @app.post("/sessions/customer")
 def switch_customer(selection: SwitchCustomerRequest, response: Response, http: Request):
+    assert_same_origin(http)
     """Switch this session's demo customer, clearing context and pending state."""
     session = resolve_session(http)
     try:
@@ -361,6 +394,7 @@ def switch_customer(selection: SwitchCustomerRequest, response: Response, http: 
 
 @app.post("/sessions/reset")
 def reset_session(http: Request):
+    assert_same_origin(http)
     """Clear this session's history and pending proposals only."""
     session = resolve_session(http)
     manager.reset(session)

@@ -27,6 +27,12 @@ h2 { font-size: 14px; margin: 0; }
 .sender { margin: 0 0 5px; font-size: 12px; font-weight: 700; color: #496356; }
 .content { margin: 0; font-size: 15px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .feedback { padding: 0 24px; font-size: 13px; }
+.trace-panel { max-width: 88%; align-self: flex-start; font-size: 12px; color: #516c5e; background: #f7faf7; border: 1px solid #e7ece7; border-radius: 9px; padding: 8px 14px; }
+.trace-panel summary { cursor: pointer; font-weight: 600; }
+.trace-panel ul { margin: 8px 0 0; padding-left: 4px; list-style: none; }
+.trace-executed { color: #245d46; }
+.trace-skipped { color: #8a8f8a; }
+.trace-failed, .trace-denied { color: #923526; }
 #status { color: #52695d; margin: 0; min-height: 24px; }
 #error { color: #923526; background: #fff2ed; padding: 10px 12px; border-radius: 8px; margin: 0 0 12px; }
 form { padding: 12px 24px 24px; }

@@ -29,10 +29,12 @@ opaque HTTP-only session cookie (30-minute idle expiry, configurable via
 `SESSION_IDLE_TIMEOUT_SECONDS`), its own conversation history, and an optional
 binding to one seeded demo customer via the local demo selector. Switching the
 demo customer or resetting the session clears conversation context and pending
-action state only; restarting the backend clears all session state. Voice,
-shop workflows, document RAG, a knowledge graph, and business storage are
-**planned, not implemented**. The existing assistant has not yet been changed
-into a shopping assistant.
+action state only; restarting the backend clears all session state. Each chat
+turn exposes a sanitized trace (stages, statuses, durations) in a panel below
+the response, session-scoped via `GET /traces/{trace_id}`. Voice, shop
+workflows, document RAG, a knowledge graph, and business storage are
+**planned, not implemented — see the roadmap issues**. The existing assistant
+has not yet been changed into a shopping assistant.
 
 ## Planned customer-support demo
 
@@ -195,7 +197,12 @@ the server. Requests without an active session receive HTTP 403.
 - `POST /sessions/reset` clears this session's history and pending state only;
   it keeps the customer binding.
 - `POST /chat` accepts `{"message": "What is VAD?"}` and returns
-  `{"response": "..."}` using this session's own history.
+  `{"response": "...", "turn_id": "...", "trace_id": "..."}` using this
+  session's own history.
+- `GET /traces/{trace_id}` returns the sanitized per-turn event trace (stages,
+  statuses, durations, skipped stages). Access is authorized to the session
+  that owns the trace only; other sessions receive a safe HTTP 404. Traces are
+  kept for 24 hours with a size cap and contain no prompts or user content.
 - FastAPI's interactive API documentation is at http://127.0.0.1:8000/docs.
 
 Chat delegates each turn to the session's history when calling Ollama; turns of

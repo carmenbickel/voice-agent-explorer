@@ -31,10 +31,12 @@ class ChatTests(unittest.TestCase):
         ]
         first = self.client.post("/chat", json={"message": "What is VAD?"})
         self.assertEqual(first.status_code, 200)
-        self.assertEqual(first.json(), {"response": "VAD means Voice Activity Detection."})
+        self.assertEqual(first.json()["response"], "VAD means Voice Activity Detection.")
+        self.assertTrue(first.json()["trace_id"])
+        self.assertTrue(first.json()["turn_id"])
         second = self.client.post("/chat", json={"message": "Why do we need it?"})
         self.assertEqual(second.status_code, 200)
-        self.assertEqual(second.json(), {"response": "It detects speech."})
+        self.assertEqual(second.json()["response"], "It detects speech.")
         self.assertEqual(post.call_args.args, (f"{ollama_client.OLLAMA_BASE_URL}/api/chat",))
         self.assertEqual(post.call_args.kwargs["json"], {
             "model": ollama_client.OLLAMA_MODEL,
@@ -72,14 +74,14 @@ class ChatTests(unittest.TestCase):
         second.post("/sessions")
         post.side_effect = [reply("Answer one"), reply("Answer two"), reply("Follow-up one")]
         self.assertEqual(
-            first.post("/chat", json={"message": "Session one"}).json(),
-            {"response": "Answer one"})
+            first.post("/chat", json={"message": "Session one"}).json()["response"],
+            "Answer one")
         self.assertEqual(
-            second.post("/chat", json={"message": "Session two"}).json(),
-            {"response": "Answer two"})
+            second.post("/chat", json={"message": "Session two"}).json()["response"],
+            "Answer two")
         self.assertEqual(
-            first.post("/chat", json={"message": "Session one again"}).json(),
-            {"response": "Follow-up one"})
+            first.post("/chat", json={"message": "Session one again"}).json()["response"],
+            "Follow-up one")
         calls = [call.kwargs["json"]["messages"] for call in post.call_args_list]
         self.assertEqual(calls[1], [
             {"role": "system", "content": SYSTEM_PROMPT},

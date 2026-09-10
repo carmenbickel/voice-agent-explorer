@@ -101,6 +101,16 @@ transaction that persists the return request with a stable `ret_…`
 reference; the response states clearly that inspection, restock, and refund
 happen later and are not performed by this demo.
 
+Exchanges (issue D4): replacement must be the **same product at the equal
+price** — unavailable, cross-product, or different-price replacements are
+refused rather than silently substituted. A proposal identifies the original
+and replacement variants, terms, expiry, and operation ID; confirmation
+rechecks facts and atomically reserves replacement stock while creating the
+persisted exchange request. Competing exchanges cannot over-reserve stock;
+repeated confirmations are idempotent. The response never claims that
+replacement shipment or original-item inspection occurred — it registers the
+request only.
+
 ## Demo shop fixtures (SQLite)
 
 `backend/shop.py` owns the Stepwise Shoes demo data. Business records live in a

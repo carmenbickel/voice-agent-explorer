@@ -166,7 +166,8 @@ def chat(request: ChatRequest, http: Request):
             response = response.split(ACTION_PREFIX)[0].strip()
         elif action and action["tool"] in ("propose_purchase",
                                            "propose_cancellation",
-                                           "propose_return"):
+                                           "propose_return",
+                                           "propose_exchange"):
             try:
                 if action["tool"] == "propose_purchase":
                     proposal = actions_module.create_purchase_proposal(
@@ -175,12 +176,16 @@ def chat(request: ChatRequest, http: Request):
                     proposal = actions_module.create_return_proposal(
                         shop_connection(), proposals, session,
                         action["args"])
+                elif action["tool"] == "propose_exchange":
+                    proposal = actions_module.create_exchange_proposal(
+                        shop_connection(), proposals, session,
+                        action["args"])
                 else:
                     proposal = actions_module.create_cancellation_proposal(
                         shop_connection(), proposals, session,
                         action["args"], operations)
                 if isinstance(proposal, dict) and proposal.get("kind") in (
-                        "purchase", "cancellation", "return"):
+                        "purchase", "cancellation", "return", "exchange"):
                     action_proposal = proposal
                     _record_stage(trace, "proposal", "executed",
                                   detail=proposal["proposal_id"])
@@ -254,6 +259,9 @@ def confirm_action(proposal_id: str, http: Request):
                     connection, proposals, proposal_id, session, operations)
             elif kind == "return":
                 result = actions_module.confirm_return(
+                    connection, proposals, proposal_id, session, operations)
+            elif kind == "exchange":
+                result = actions_module.confirm_exchange(
                     connection, proposals, proposal_id, session, operations)
             else:
                 result = actions_module.confirm_purchase(

@@ -255,6 +255,164 @@ def create_return_proposal(connection, proposals, session, args, clock=None):
     return view
 
 
+def create_exchange_proposal(connection, proposals, session, args, clock=None):
+    """Same-product, equal-price replacement of an owned delivered line."""
+    from backend.tools import validate_args
+    if session.customer_id is None:
+        raise ProposalError(400, "DEMO_CUSTOMER_REQUIRED")
+    args = validate_args("propose_exchange", args)
+    if args["condition"] not in RETURN_CONDITIONS:
+        raise ProposalError(409, "CONDITION_NOT_ACCEPTED")
+    now_epoch = clock() if clock else time.time()
+    line = connection.execute(
+        "SELECT o.id, o.customer_id, o.state, o.policy_version,"
+        " o.delivery_utc FROM orders o JOIN order_lines ol"
+        " ON ol.order_id = o.id"
+        " WHERE o.id = ? AND ol.variant_id = ?",
+        (args["order_id"], args["variant_id"])).fetchone()
+    if line is None or line["customer_id"] != session.customer_id:
+        raise ProposalError(404, "PROPOSAL_NOT_AVAILABLE")
+    if line["state"] != "delivered":
+        raise ProposalError(409, "NOT_RETURNABLE_YET")
+    active = connection.execute(
+        "SELECT state FROM returns WHERE order_id = ? AND variant_id = ?"
+        " AND state = 'requested'",
+        (args["order_id"], args["variant_id"])).fetchone()
+    active_exchange = connection.execute(
+        "SELECT state FROM exchanges WHERE order_id = ?"
+        " AND original_variant_id = ? AND state = 'requested'",
+        (args["order_id"], args["variant_id"])).fetchone()
+    if active is not None or active_exchange is not None:
+        raise ProposalError(409, "REQUEST_ALREADY_ACTIVE")
+    replacement = connection.execute(
+        "SELECT v.id, v.product_id, v.size, v.colour, v.price_cents,"
+        " p.name FROM variants v JOIN products p ON p.id = v.product_id"
+        " WHERE v.id = ?",
+        (args["replacement_variant_id"],)).fetchone()
+    original = connection.execute(
+        "SELECT v.product_id, v.price_cents FROM variants v WHERE v.id = ?",
+        (args["variant_id"],)).fetchone()
+    if replacement is None or original is None:
+        raise ProposalError(404, "PROPOSAL_NOT_AVAILABLE")
+    if replacement["product_id"] != original["product_id"]:
+        # No silent cross-product substitution.
+        raise ProposalError(409, "REPLACEMENT_NOT_IDENTICAL")
+    if replacement["price_cents"] != original["price_cents"]:
+        raise ProposalError(409, "REPLACEMENT_PRICE_DIFFERS")
+    stock = connection.execute(
+        "SELECT on_hand, reserved FROM inventory WHERE variant_id = ?",
+        (replacement["id"],)).fetchone()
+    if stock is None or stock["on_hand"] - stock["reserved"] < 1:
+        raise ProposalError(409, "OUT_OF_STOCK")
+    payload = {
+        "order_id": args["order_id"],
+        "original_variant_id": args["variant_id"],
+        "replacement_variant_id": replacement["id"],
+        "condition": args["condition"],
+    }
+    proposal = proposals.create(
+        owner_session=session.id, owner_customer=session.customer_id,
+        kind="exchange", payload=payload)
+    proposal["payload_hash"] = payload_hash(payload)
+    view = proposal_view(proposal, proposals)
+    view["terms"] = (
+        f"Exchange {args['variant_id']} for {replacement['id']} of the same"
+        f" product at the same price. Condition: {args['condition']}.")
+    view["original_variant_id"] = args["variant_id"]
+    view["replacement_variant_id"] = replacement["id"]
+    return view
+
+
+def confirm_exchange(connection, proposals, proposal_id: str, session,
+                     operations, clock=None) -> dict:
+    """Reservation of replacement stock + persisted exchange request in the
+    same transaction after revalidating facts."""
+    proposal = proposals.view(proposal_id)
+    if proposal is None or proposal["owner_session"] != session.id:
+        raise ProposalError(404, "PROPOSAL_NOT_AVAILABLE")
+    if proposal["status"] == "confirmed":
+        view = operations.as_dict(proposal["operation_id"], idempotent=True)
+        view["exchange_reference"] = proposal["payload"].get("reference")
+        view["exchange_state"] = "requested"
+        return view
+    if proposals.expired(proposal):
+        proposals.consume(proposal_id)
+        raise ProposalError(409, "PROPOSAL_EXPIRED")
+
+    import calendar
+    now_epoch = clock() if clock else time.time()
+    payload = proposal["payload"]
+    connection.execute("BEGIN IMMEDIATE")
+    try:
+        line = connection.execute(
+            "SELECT o.id, o.customer_id, o.state, o.policy_version,"
+            " o.delivery_utc FROM orders o JOIN order_lines ol"
+            " ON ol.order_id = o.id"
+            " WHERE o.id = ? AND ol.variant_id = ?",
+            (payload["order_id"], payload["original_variant_id"])).fetchone()
+        if line is None or line["customer_id"] != session.customer_id:
+            raise ProposalError(404, "PROPOSAL_NOT_AVAILABLE")
+        if line["state"] != "delivered":
+            raise ProposalError(409, "NOT_RETURNABLE_YET")
+        active = connection.execute(
+            "SELECT state FROM returns WHERE order_id = ? AND variant_id = ?"
+            " AND state = 'requested'",
+            (payload["order_id"], payload["original_variant_id"])).fetchone()
+        active_exchange = connection.execute(
+            "SELECT state FROM exchanges WHERE order_id = ?"
+            " AND original_variant_id = ? AND state = 'requested'",
+            (payload["order_id"], payload["original_variant_id"])).fetchone()
+        if active is not None or active_exchange is not None:
+            raise ProposalError(409, "REQUEST_ALREADY_ACTIVE")
+        # Same product, equal price: rechecked from current rows.
+        prices = connection.execute(
+            "SELECT v.id, v.product_id, v.price_cents FROM variants v"
+            " WHERE v.id IN (?, ?)",
+            (payload["original_variant_id"],
+             payload["replacement_variant_id"])).fetchall()
+        by_id = {row["id"]: dict(row) for row in prices}
+        if (payload["replacement_variant_id"] not in by_id
+                or payload["original_variant_id"] not in by_id):
+            raise ProposalError(404, "PROPOSAL_NOT_AVAILABLE")
+        if (by_id[payload["replacement_variant_id"]]["product_id"]
+                != by_id[payload["original_variant_id"]]["product_id"]):
+            raise ProposalError(409, "REPLACEMENT_NOT_IDENTICAL")
+        changed = connection.execute(
+            "UPDATE inventory SET reserved = reserved + 1"
+            " WHERE variant_id = ? AND on_hand - reserved >= 1",
+            (payload["replacement_variant_id"],))
+        if changed.rowcount != 1:
+            raise ProposalError(409, "OUT_OF_STOCK")
+        reference = "exg_" + secrets.token_urlsafe(8).lower()
+        stamp = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
+        connection.execute(
+            "INSERT INTO exchanges (id, customer_id, order_id,"
+            " original_variant_id, replacement_variant_id, condition,"
+            " policy_version, state, created_utc)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, 'requested', ?)",
+            (reference, session.customer_id, payload["order_id"],
+             payload["original_variant_id"],
+             payload["replacement_variant_id"],
+             payload["condition"], line["policy_version"], stamp))
+        operation_id = "op_" + secrets.token_urlsafe(10)
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+
+    proposal["status"] = "confirmed"
+    proposal["operation_id"] = operation_id
+    proposal["payload"]["reference"] = reference
+    operations.record(operation_id, proposal, payload["order_id"])
+    view = operations.as_dict(operation_id, idempotent=False)
+    view["exchange_reference"] = reference
+    view["exchange_state"] = "requested"
+    view["explanation"] = (
+        "Replacement shipment and original-item inspection have NOT happened;"
+        " this registers the exchange request only.")
+    return view
+
+
 def confirm_return(connection, proposals, proposal_id: str, session,
                    operations, clock=None) -> dict:
     """Commit requires a full eligibility + ownership recheck in the same

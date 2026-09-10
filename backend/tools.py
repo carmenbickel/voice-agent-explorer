@@ -27,6 +27,7 @@ _TOOL_SPEC = {
     "search_products": {"query": str},
     "get_variant_stock": {"variant_id": str},
     "propose_purchase": {"variant_id": str, "quantity": int},
+    "propose_cancellation": {"order_id": str},
 }
 
 

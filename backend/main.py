@@ -164,13 +164,33 @@ def chat(request: ChatRequest, http: Request):
             _record_stage(trace, "proposal", "skipped",
                           detail=action["error_code"])
             response = response.split(ACTION_PREFIX)[0].strip()
-        elif action and action["tool"] == "propose_purchase":
+        elif action and action["tool"] in ("propose_purchase",
+                                           "propose_cancellation"):
             try:
-                action_proposal = actions_module.create_purchase_proposal(
-                    shop_connection(), proposals, session, action["args"])
-                _record_stage(trace, "proposal", "executed",
-                              detail=action_proposal["proposal_id"])
-                response = response.split("ACTION ")[0].strip()
+                if action["tool"] == "propose_purchase":
+                    proposal = actions_module.create_purchase_proposal(
+                        shop_connection(), proposals, session, action["args"])
+                else:
+                    proposal = actions_module.create_cancellation_proposal(
+                        shop_connection(), proposals, session,
+                        action["args"], operations)
+                if isinstance(proposal, dict) and proposal.get("kind") in (
+                        "purchase", "cancellation"):
+                    action_proposal = proposal
+                    _record_stage(trace, "proposal", "executed",
+                                  detail=proposal["proposal_id"])
+                    response = response.split("ACTION ")[0].strip()
+                elif isinstance(proposal, dict) and \
+                        proposal.get("status") == "already_cancelled":
+                    outcome = proposal.get("operation")
+                    reference = outcome["operation_id"] if outcome else \
+                        "no ticket was recorded"
+                    response = (
+                        response.split("ACTION ")[0].strip()
+                        + "\nThis order is already cancelled. Reference: "
+                        + str(reference))
+                    _record_stage(trace, "proposal", "executed",
+                                  detail="already cancelled; existing outcome")
             except actions_module.ProposalError as failure:
                 _record_stage(trace, "proposal", "failed",
                               detail=failure.code)
@@ -217,14 +237,22 @@ def confirm_action(proposal_id: str, http: Request):
     session = resolve_session(http)
     connection = shop_connection()
     try:
-        result = actions_module.confirm_purchase(
-            connection, proposals, proposal_id, session, operations)
+        proposal = proposals.view(proposal_id)
+        if (proposal is None or proposal["owner_session"] != session.id
+                or proposal["kind"] == "purchase"):
+            result = actions_module.confirm_purchase(
+                connection, proposals, proposal_id, session, operations)
+        else:
+            result = actions_module.confirm_cancellation(
+                connection, proposals, proposal_id, session, operations)
     except actions_module.ProposalError as failure:
         connection.close()
         if failure.status_code == 404 or failure.code == "PROPOSAL_NOT_AVAILABLE":
             detail = PROPOSAL_NOT_AVAILABLE
         elif failure.code == "PROPOSAL_EXPIRED":
             detail = "Proposal expired. Ask again to get a new proposal."
+        elif failure.code == "NOT_CANCELLABLE":
+            detail = "Only processing orders can be cancelled."
         else:
             detail = f"Proposal no longer valid ({failure.code})."
         raise HTTPException(status_code=failure.status_code, detail=detail)

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Voice Agent Explorer</title>
   <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/voice-logic.js" defer></script>
   <script src="/static/app.js" defer></script>
 </head>
 <body>
@@ -37,6 +38,8 @@
         <label for="message">Your question</label>
         <div class="composer">
           <input id="message" name="message" type="text" placeholder="What is voice activity detection?" autocomplete="off" required>
+          <button id="listen" type="button" title="Use your microphone to ask a question">Listen</button>
+          <button id="stop" type="button" title="Stop speaking or listening" hidden>Stop</button>
           <button id="send" type="submit">Send <span aria-hidden="true">↑</span></button>
         </div>
       </form>

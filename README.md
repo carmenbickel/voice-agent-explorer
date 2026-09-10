@@ -11,9 +11,18 @@ who want to see how a customer request passes through their architecture.
 
 ## Current status
 
-Today the application is a **text-chat foundation**. It explains voice-AI
-concepts through a browser UI, FastAPI, and a local Ollama model. It supports
-follow-up questions, a thinking indicator, error messages, and retry feedback.
+Today the application is a **text-chat foundation with browser voice turns**.
+It explains voice-AI concepts through a browser UI, FastAPI, and a local
+Ollama model. It supports follow-up questions, a thinking indicator, error
+messages, and retry feedback.
+
+**Voice (issues B1):** the **Listen** control opens the browser microphone,
+submits the recognized utterance to the session, and speaks the response
+aloud. The status line shows **idle, listening, transcribing, thinking, and
+speaking** states. Browsers without speech APIs, or denied microphone access,
+keep full text chat and display an actionable status. A **Stop** control
+cancels playback or listening; a newer turn cancels prior playback so late
+responses never speak over the newer turn.
 
 It currently uses **isolated server-side sessions**: each browser gets an
 opaque HTTP-only session cookie (30-minute idle expiry, configurable via
@@ -205,18 +214,21 @@ git diff --check
 
 The automated tests mock Ollama, so a running model is not required for them.
 They cover conversation context, failed-turn behavior, API validation/errors,
-session isolation, shop fixtures/catalog reads, and serving the frontend
-page/assets. For a manual browser check, exchange two messages, verify the
-thinking state and response order, and check retry behavior when the model
-service is unavailable.
+session isolation, shop fixtures/catalog reads, voice-logic decisions (state
+machine, stale-turn protection, and fallback via `node
+tests/voice_logic_test.js`), and serving the frontend page/assets. For a
+manual browser check, exchange two messages, verify the thinking state and
+response order, use the Listen control to speak a question and hear the
+response, use Stop to cancel playback, and check retry behaviour when the
+model service is unavailable.
 
 ## Project structure
 
 ```text
 backend/           FastAPI, conversation agent, Ollama client, sessions, shop fixtures
-frontend/          Browser HTML, JavaScript, and CSS
+frontend/          Browser HTML, JavaScript, voice logic, and CSS
 knowledge/         Reserved for knowledge content; retrieval is not built yet
-tests/             Current automated API/agent/shop checks
+tests/             Current automated API/agent/shop/voice checks
 ARCHITECTURE.md    Target design, Mermaid diagrams, and implementation milestones
 docs/diagrams/     Editable SVG architecture illustrations
 requirements.txt  Current Python dependencies

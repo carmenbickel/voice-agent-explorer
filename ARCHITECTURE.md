@@ -26,7 +26,7 @@ already implemented. This documentation implements issue #11 only.
 
 | Area | Current implementation | Target |
 | --- | --- | --- |
-| UI | Browser text chat with loading/error/retry feedback | Text and voice, sources, action confirmations, architecture panel |
+| UI | Browser text chat with loading/error/retry feedback, plus browser voice turns (listen/transcribe/think/speak states, stop control, stale-turn protection) | Text and voice, sources, action confirmations, architecture panel |
 | Backend | FastAPI serves `/`, `/static`, `/health`, `/chat`, and session endpoints (`POST /sessions`, `GET /sessions/customers`, `POST /sessions/customer`, `POST /sessions/reset`) with an opaque HTTP-only session cookie | Session-aware chat, traces, and controlled domain services |
 | Agent | Explains voice-AI concepts using Ollama | Customer-support orchestration with retrieval and bounded tool calls |
 | State | Isolated in-memory sessions (session history, pending state, demo-customer binding, 30-minute idle expiry) plus seeded SQLite shop fixtures with deterministic seed/reset | Isolated sessions plus persisted demo business records |

@@ -1,6 +1,5 @@
-from threading import Lock
-
 from backend.ollama_client import generate_response
+from backend.sessions import Session
 
 
 SYSTEM_PROMPT = (
@@ -10,18 +9,22 @@ SYSTEM_PROMPT = (
 )
 
 
-class ConversationAgent:
-    """Keep one in-memory conversation for the lifetime of this agent."""
-
-    def __init__(self):
-        self._messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-        self._lock = Lock()
-
-    def chat(self, message: str) -> str:
-        # FastAPI can handle simultaneous requests in different threads.
-        with self._lock:
-            messages = self._messages + [{"role": "user", "content": message}]
-            response = generate_response(messages)
-            # Failed requests must not leave an unanswered turn in history.
-            self._messages = messages + [{"role": "assistant", "content": response}]
-            return response
+def run_chat_turn(session: Session, message: str) -> str:
+    """Run one serialized turn for this session and record it on success."""
+    # Turns of one session are serialized; independent sessions progress in
+    # parallel because each session owns its own lock.
+    with session.lock:
+        session.touch()
+        messages = (
+            [{"role": "system", "content": SYSTEM_PROMPT}]
+            + session.history
+            + [{"role": "user", "content": message}]
+        )
+        response = generate_response(messages)
+        # Failed requests must not leave an unanswered turn in history.
+        session.history = (
+            session.history
+            + [{"role": "user", "content": message},
+               {"role": "assistant", "content": response}]
+        )
+        return response

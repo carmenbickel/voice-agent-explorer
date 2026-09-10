@@ -15,13 +15,15 @@ Today the application is a **text-chat foundation**. It explains voice-AI
 concepts through a browser UI, FastAPI, and a local Ollama model. It supports
 follow-up questions, a thinking indicator, error messages, and retry feedback.
 
-It currently has **one shared in-memory conversation** per backend process.
-Reloading the page clears the visible transcript, not the agent's history.
-Restarting the backend clears that history. Run locally with one worker.
-
-Voice, isolated sessions, shop workflows, document RAG, a knowledge graph,
-business storage, and an architecture panel are **planned, not implemented**.
-The existing assistant has not yet been changed into a shopping assistant.
+It currently uses **isolated server-side sessions**: each browser gets an
+opaque HTTP-only session cookie (30-minute idle expiry, configurable via
+`SESSION_IDLE_TIMEOUT_SECONDS`), its own conversation history, and an optional
+binding to one seeded demo customer via the local demo selector. Switching the
+demo customer or resetting the session clears conversation context and pending
+action state only; restarting the backend clears all session state. Voice,
+shop workflows, document RAG, a knowledge graph, and business storage are
+**planned, not implemented**. The existing assistant has not yet been changed
+into a shopping assistant.
 
 ## Planned customer-support demo
 
@@ -123,21 +125,32 @@ Set environment variables before starting Uvicorn to override the defaults:
 | --- | --- |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` |
 | `OLLAMA_MODEL` | `llama3.2:3b` |
+| `SESSION_IDLE_TIMEOUT_SECONDS` | `1800` (30 minutes) |
 
 If selecting another model, pull it into Ollama first. The embedding model
 mentioned in the target architecture is not used by the current application.
 
 ### Current API
 
+Sessions are identified by an opaque, HTTP-only `session_id` cookie issued by
+the server. Requests without an active session receive HTTP 403.
+
 - `GET /health` → `{"status": "ok"}`
+- `POST /sessions` creates a session and sets the cookie. Send
+  `{"customer_id": "..."}` to bind a seeded demo customer (see
+  `GET /sessions/customers`), or no body for an anonymous session.
+- `POST /sessions/customer` switches this session's demo customer and clears
+  its conversation context and pending state.
+- `POST /sessions/reset` clears this session's history and pending state only;
+  it keeps the customer binding.
 - `POST /chat` accepts `{"message": "What is VAD?"}` and returns
-  `{"response": "..."}`.
-- Ask `{"message": "Why do we need it?"}` next to use the same shared history.
+  `{"response": "..."}` using this session's own history.
 - FastAPI's interactive API documentation is at http://127.0.0.1:8000/docs.
 
-Chat delegates to `ConversationAgent`, which sends its system prompt and
-history to Ollama. Ollama failures return an HTTP 503 response. These are the
-current contracts; session-aware APIs in the design are future changes.
+Chat delegates each turn to the session's history when calling Ollama; turns of
+one session are serialized while different sessions progress independently.
+Ollama failures return an HTTP 503 response. Seeded demo customers are
+simulated identity for the local demo only, not authentication.
 
 ## Checks
 

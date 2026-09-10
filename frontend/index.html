@@ -16,6 +16,13 @@
     </header>
     <section class="chat" aria-label="Chat with the assistant">
       <div class="chat-heading"><h2>Your conversation</h2><span>Text chat</span></div>
+      <div class="session-controls">
+        <label for="demo-customer">Demo customer</label>
+        <select id="demo-customer" name="demo-customer" aria-label="Demo customer">
+          <option value="">No customer yet</option>
+        </select>
+        <button id="reset" type="button">Reset</button>
+      </div>
       <div id="messages" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions">
         <article class="message assistant">
           <p class="sender">Assistant</p>
@@ -34,7 +41,7 @@
         </div>
       </form>
     </section>
-    <p class="session-note">One shared local session. Restarting the backend clears the assistant’s memory; reloading this page clears only the visible messages.</p>
+    <p class="session-note">Each browser session gets its own cookie-backed local session that expires after 30 minutes of inactivity. Switching the demo customer or clicking Reset clears the conversation context; reloading this page clears only the visible messages.</p>
   </main>
 </body>
 </html>

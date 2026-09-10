@@ -4,7 +4,84 @@ const send = document.querySelector('#send');
 const messages = document.querySelector('#messages');
 const status = document.querySelector('#status');
 const error = document.querySelector('#error');
+const customerSelect = document.querySelector('#demo-customer');
+const resetButton = document.querySelector('#reset');
 let pending = false;
+let sessionReady = false;
+
+function clearTranscript() {
+  messages.replaceChildren();
+}
+
+async function createSession(customerId) {
+  const response = await fetch('/sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(customerId ? { customer_id: customerId } : {}),
+  });
+  if (!response.ok) throw new Error('Could not start a session');
+  const data = await response.json();
+  sessionReady = true;
+  updateCustomerLabel(data.customer);
+  return data.customer;
+}
+
+function loadCustomers() {
+  fetch('/sessions/customers')
+    .then((response) => response.json())
+    .then((data) => {
+      for (const customer of data.customers) {
+        const option = document.createElement('option');
+        option.value = customer.id;
+        option.textContent = `${customer.name} (${customer.id})`;
+        customerSelect.append(option);
+      }
+    })
+    .catch(() => {});
+}
+
+function updateCustomerLabel(customer) {
+  for (const option of customerSelect.options) {
+    option.selected = customer && option.value === customer.id;
+  }
+  if (!customer) {
+    customerSelect.selectedIndex = 0;
+  }
+}
+
+customerSelect.addEventListener('change', async () => {
+  error.hidden = true;
+  const customerId = customerSelect.value;
+  if (!customerId || !sessionReady) return;
+  const response = await fetch('/sessions/customer', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ customer_id: customerId }),
+  });
+  if (response.ok) {
+    clearTranscript();
+    addMessage('assistant', `Demo customer switched. The assistant has no memory of previous conversations.`);
+  } else {
+    error.textContent = 'Could not switch the demo customer.';
+    error.hidden = false;
+    updateCustomerLabel(null);
+  }
+});
+
+resetButton.addEventListener('click', async () => {
+  if (!sessionReady) return;
+  const response = await fetch('/sessions/reset', { method: 'POST' });
+  if (response.ok) {
+    clearTranscript();
+    addMessage('assistant', 'Conversation cleared. The assistant has no memory of previous messages.');
+  } else {
+    error.textContent = 'Could not reset the conversation.';
+    error.hidden = false;
+  }
+});
+
+createSession().catch(() => {});
+loadCustomers();
 
 function addMessage(role, text) {
   const message = document.createElement('article');

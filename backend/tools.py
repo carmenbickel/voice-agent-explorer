@@ -30,6 +30,8 @@ _TOOL_SPEC = {
     "propose_cancellation": {"order_id": str},
     "propose_return": {"order_id": str, "variant_id": str, "reason": str,
                        "condition": str},
+    "propose_exchange": {"order_id": str, "variant_id": str,
+                         "replacement_variant_id": str, "condition": str},
 }
 
 

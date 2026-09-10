@@ -80,19 +80,17 @@ repeatable report in `knowledge/eval/`; regenerate with
 ## Commerce workflows (issue D1)
 
 Chat answers may end with a typed `ACTION {…}` line proposing an allowlisted
-tool (purchase proposals only in this issue). Argument schemas are validated;
-unknown tools, malformed actions, and repeated actions are rejected without
-harm. When a purchase applies, the response carries an `action_proposal`
-showing exact items, quantities, total, and proposal ID — **nothing is
-written** until you press Confirm purchase, which calls
-`POST /actions/{proposal_id}/confirm`. That endpoint rechecks the quote
-(current SQLite price), ownership (server session), quantity, and stock
-inside one transaction, reserves inventory, and creates the processing order;
-forgetting nothing, repeated confirmations resolve by operation ID without
-duplicating the order (`GET /operations/{operation_id}` for
-timeout/unknown outcomes). Expired or price-changed proposals require a new
-confirmation. Anonymous sessions cannot buy. Concurrent buyers cannot
-over-reserve the last available variant.
+tool (purchases and cancellations so far; returns and exchanges are tracked in
+later issues). Argument schemas are validated; unknown tools, malformed
+actions, and repeated actions are rejected without harm. When a purchase
+applies, the response carries an `action_proposal` showing exact items,
+quantities, total, and proposal ID — **nothing is written** until you press
+Confirm purchase. For cancellations: only an owned processing order can be
+proposed; shipped and delivered orders are denied with a safe explanation and
+no state change; already-cancelled orders answer with the existing outcome
+without a duplicated operation. Confirmation rechecks ownership and
+fulfillment state transactionally, marks the order cancelled, and releases
+its reserved stock exactly once.
 
 ## Demo shop fixtures (SQLite)
 

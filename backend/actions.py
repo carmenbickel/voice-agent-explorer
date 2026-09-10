@@ -72,8 +72,8 @@ class ProposalStore:
         return proposal["created"] + self.ttl_seconds < self.clock()
 
 
-def purchase_view(proposal: dict, store=None) -> dict:
-    """A proposal reply shows exact items, quantities, total, expiry, id."""
+def proposal_view(proposal: dict, store=None) -> dict:
+    """A proposal reply shows the exact terms before any write."""
     payload = proposal["payload"]
     seconds_left = None
     if store is not None and store.clock is not None and proposal.get("created"):
@@ -135,7 +135,120 @@ def create_purchase_proposal(connection, proposals, session, args):
         owner_session=session.id, owner_customer=session.customer_id,
         kind="purchase", payload=payload)
     proposal["payload_hash"] = payload_hash(payload)
-    return purchase_view(proposal, proposals)
+    return proposal_view(proposal, proposals)
+
+
+def proposal_view(proposal: dict, store=None) -> dict:
+    """A proposal reply shows the exact terms before any write."""
+    payload = proposal["payload"]
+    seconds_left = None
+    if store is not None and store.clock is not None and proposal.get("created") is not None:
+        seconds_left = max(0, int(store.ttl_seconds
+                                  - (store.clock() - proposal["created"])))
+    base = {
+        "proposal_id": proposal["proposal_id"],
+        "kind": proposal["kind"],
+        "status": proposal["status"],
+        **({"seconds_left": seconds_left} if seconds_left is not None else {}),
+    }
+    if proposal["kind"] == "purchase":
+        base["items"] = [
+            {"variant_id": item["variant_id"], "name": item["name"],
+             "size": item["size"], "colour": item["colour"],
+             "unit_price_cents": item["unit_price_cents"],
+             "quantity": item["quantity"]}
+            for item in payload["items"]
+        ]
+        base["total_cents"] = sum(item["unit_price_cents"] * item["quantity"]
+                                  for item in payload["items"])
+    elif proposal["kind"] == "cancellation":
+        base["order_id"] = payload["order_id"]
+    return base
+
+
+def create_cancellation_proposal(connection, proposals, session, args,
+                                 operations):
+    """Only an owned processing order yields an eligible proposal."""
+    from backend.tools import validate_args
+    if session.customer_id is None:
+        raise ProposalError(400, "DEMO_CUSTOMER_REQUIRED")
+    args = validate_args("propose_cancellation", args)
+    order = connection.execute(
+        "SELECT id, customer_id, state FROM orders WHERE id = ?",
+        (args["order_id"],)).fetchone()
+    if order is None or order["customer_id"] != session.customer_id:
+        raise ProposalError(404, "PROPOSAL_NOT_AVAILABLE")
+    if order["state"] == "cancelled":
+        existing = operations.find_by_order(
+            session.customer_id, "cancellation", order["id"])
+        # Already cancelled: return the existing outcome, no duplicate op.
+        return {"status": "already_cancelled",
+                "operation": existing,
+                "order_id": order["id"]}
+    if order["state"] != "processing":
+        raise ProposalError(409, "NOT_CANCELLABLE")
+    payload = {"order_id": order["id"]}
+    proposal = proposals.create(
+        owner_session=session.id, owner_customer=session.customer_id,
+        kind="cancellation", payload=payload)
+    proposal["payload_hash"] = payload_hash(payload)
+    return proposal_view(proposal, proposals)
+
+
+def confirm_cancellation(connection, proposals,
+                         proposal_id: str, session, operations) -> dict:
+    """Transactional confirmation: ownership + fulfillment recheck, exact-once release."""
+    proposal = proposals.view(proposal_id)
+    if proposal is None:
+        raise ProposalError(404, "PROPOSAL_NOT_AVAILABLE")
+    if proposal["owner_session"] != session.id:
+        raise ProposalError(404, "PROPOSAL_NOT_AVAILABLE")
+    if proposal["status"] == "confirmed":
+        return operations.as_dict(proposal["operation_id"], idempotent=True)
+    if proposals.expired(proposal):
+        proposals.consume(proposal_id)
+        raise ProposalError(409, "PROPOSAL_EXPIRED")
+
+    order_id = proposal["payload"]["order_id"]
+    connection.execute("BEGIN IMMEDIATE")
+    try:
+        order = connection.execute(
+            "SELECT id, customer_id, state FROM orders WHERE id = ?",
+            (order_id,)).fetchone()
+        if order is None or order["customer_id"] != session.customer_id:
+            raise ProposalError(404, "PROPOSAL_NOT_AVAILABLE")
+        separately_cancelled = order["state"] == "cancelled"
+        if separately_cancelled:
+            existing = operations.find_by_order(
+                session.customer_id, "cancellation", order_id)
+            connection.commit()
+            if existing is not None:
+                return operations.as_dict(existing["operation_id"],
+                                          idempotent=True)
+            raise ProposalError(409, "FULFILLMENT_STATE_CHANGED")
+        changed = connection.execute(
+            "UPDATE orders SET state = 'cancelled'"
+            " WHERE id = ? AND customer_id = ? AND state = 'processing'",
+            (order_id, session.customer_id))
+        if changed.rowcount != 1:
+            raise ProposalError(409, "FULFILLMENT_STATE_CHANGED")
+        for line in connection.execute(
+                "SELECT variant_id, quantity FROM order_lines"
+                " WHERE order_id = ?", (order_id,)).fetchall():
+            connection.execute(
+                "UPDATE inventory SET reserved = MAX(reserved - ?, 0)"
+                " WHERE variant_id = ?", (line["quantity"],
+                                          line["variant_id"]))
+        operation_id = "op_" + secrets.token_urlsafe(10)
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+
+    proposal["status"] = "confirmed"
+    proposal["operation_id"] = operation_id
+    operations.record(operation_id, proposal, order_id)
+    return operations.as_dict(operation_id, idempotent=False)
 
 
 def confirm_purchase(connection, proposals, proposal_id: str,
@@ -220,6 +333,14 @@ class OperationStore:
 
     def get(self, operation_id: str):
         return self._operations.get(operation_id)
+
+    def find_by_order(self, owner_customer: str, kind: str, order_id: str):
+        for operation in self._operations.values():
+            if (operation["owner_customer"] == owner_customer
+                    and operation["kind"] == kind
+                    and operation["order_id"] == order_id):
+                return dict(operation)
+        return None
 
     def as_dict(self, operation_id: str, idempotent: bool = False):
         operation = dict(self.get(operation_id))

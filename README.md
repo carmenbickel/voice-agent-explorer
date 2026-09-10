@@ -80,8 +80,8 @@ repeatable report in `knowledge/eval/`; regenerate with
 ## Commerce workflows (issue D1)
 
 Chat answers may end with a typed `ACTION {…}` line proposing an allowlisted
-tool (purchases and cancellations so far; returns and exchanges are tracked in
-later issues). Argument schemas are validated; unknown tools, malformed
+tool (purchases, cancellations, and returns so far; exchanges are tracked in
+a later issue). Argument schemas are validated; unknown tools, malformed
 actions, and repeated actions are rejected without harm. When a purchase
 applies, the response carries an `action_proposal` showing exact items,
 quantities, total, and proposal ID — **nothing is written** until you press
@@ -91,6 +91,15 @@ no state change; already-cancelled orders answer with the existing outcome
 without a duplicated operation. Confirmation rechecks ownership and
 fulfillment state transactionally, marks the order cancelled, and releases
 its reserved stock exactly once.
+
+Returns (issue D3): only an owned **delivered** order line inside the
+approved policy window (30 days from delivery, order's own policy version,
+injectable UTC clock) can be proposed, with allowlisted reasons and
+conditions. A second active return or exchange request for the same line is
+rejected. Confirmation revalidates eligibility and ownership in the same
+transaction that persists the return request with a stable `ret_…`
+reference; the response states clearly that inspection, restock, and refund
+happen later and are not performed by this demo.
 
 ## Demo shop fixtures (SQLite)
 

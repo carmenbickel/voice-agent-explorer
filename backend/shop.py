@@ -131,7 +131,7 @@ CREATE TABLE IF NOT EXISTS orders (
 
 CREATE TABLE IF NOT EXISTS order_lines (
     order_id TEXT NOT NULL REFERENCES orders(id),
-    variant_id TEXT NOT NULL REFERENCES variants(id),
+    variant_id TEXT NOT NULL,
     item_name TEXT NOT NULL,
     size INTEGER NOT NULL,
     colour TEXT NOT NULL,
@@ -139,6 +139,36 @@ CREATE TABLE IF NOT EXISTS order_lines (
     quantity INTEGER NOT NULL CHECK (quantity > 0),
     PRIMARY KEY (order_id, variant_id)
 );
+
+CREATE TABLE IF NOT EXISTS returns (
+    id TEXT PRIMARY KEY,
+    customer_id TEXT NOT NULL REFERENCES customers(id),
+    order_id TEXT NOT NULL REFERENCES orders(id),
+    variant_id TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    condition TEXT NOT NULL,
+    policy_version TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'requested',
+    created_utc TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_active_return
+    ON returns (order_id, variant_id) WHERE state = 'requested';
+
+CREATE TABLE IF NOT EXISTS exchanges (
+    id TEXT PRIMARY KEY,
+    customer_id TEXT NOT NULL REFERENCES customers(id),
+    order_id TEXT NOT NULL,
+    original_variant_id TEXT NOT NULL,
+    replacement_variant_id TEXT NOT NULL,
+    condition TEXT NOT NULL,
+    policy_version TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'requested',
+    created_utc TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_active_exchange
+    ON exchanges(order_id, original_variant_id) WHERE state = 'requested';
 """
 
 

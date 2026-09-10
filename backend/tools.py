@@ -28,6 +28,8 @@ _TOOL_SPEC = {
     "get_variant_stock": {"variant_id": str},
     "propose_purchase": {"variant_id": str, "quantity": int},
     "propose_cancellation": {"order_id": str},
+    "propose_return": {"order_id": str, "variant_id": str, "reason": str,
+                       "condition": str},
 }
 
 

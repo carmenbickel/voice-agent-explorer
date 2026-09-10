@@ -165,17 +165,22 @@ def chat(request: ChatRequest, http: Request):
                           detail=action["error_code"])
             response = response.split(ACTION_PREFIX)[0].strip()
         elif action and action["tool"] in ("propose_purchase",
-                                           "propose_cancellation"):
+                                           "propose_cancellation",
+                                           "propose_return"):
             try:
                 if action["tool"] == "propose_purchase":
                     proposal = actions_module.create_purchase_proposal(
                         shop_connection(), proposals, session, action["args"])
+                elif action["tool"] == "propose_return":
+                    proposal = actions_module.create_return_proposal(
+                        shop_connection(), proposals, session,
+                        action["args"])
                 else:
                     proposal = actions_module.create_cancellation_proposal(
                         shop_connection(), proposals, session,
                         action["args"], operations)
                 if isinstance(proposal, dict) and proposal.get("kind") in (
-                        "purchase", "cancellation"):
+                        "purchase", "cancellation", "return"):
                     action_proposal = proposal
                     _record_stage(trace, "proposal", "executed",
                                   detail=proposal["proposal_id"])
@@ -238,13 +243,21 @@ def confirm_action(proposal_id: str, http: Request):
     connection = shop_connection()
     try:
         proposal = proposals.view(proposal_id)
-        if (proposal is None or proposal["owner_session"] != session.id
-                or proposal["kind"] == "purchase"):
+        if proposal is None or proposal["owner_session"] != session.id:
             result = actions_module.confirm_purchase(
                 connection, proposals, proposal_id, session, operations)
+            kind = "purchase"
         else:
-            result = actions_module.confirm_cancellation(
-                connection, proposals, proposal_id, session, operations)
+            kind = proposal["kind"]
+            if kind == "cancellation":
+                result = actions_module.confirm_cancellation(
+                    connection, proposals, proposal_id, session, operations)
+            elif kind == "return":
+                result = actions_module.confirm_return(
+                    connection, proposals, proposal_id, session, operations)
+            else:
+                result = actions_module.confirm_purchase(
+                    connection, proposals, proposal_id, session, operations)
     except actions_module.ProposalError as failure:
         connection.close()
         if failure.status_code == 404 or failure.code == "PROPOSAL_NOT_AVAILABLE":
@@ -253,6 +266,18 @@ def confirm_action(proposal_id: str, http: Request):
             detail = "Proposal expired. Ask again to get a new proposal."
         elif failure.code == "NOT_CANCELLABLE":
             detail = "Only processing orders can be cancelled."
+        elif failure.code == "NOT_RETURNABLE_YET":
+            detail = "Only delivered lines can be returned."
+        elif failure.code == "RETURN_WINDOW_EXPIRED":
+            detail = "The return window has expired for this order."
+        elif failure.code == "REQUEST_ALREADY_ACTIVE":
+            detail = ("An active return or exchange request already exists"
+                      " for this line.")
+        elif failure.code == "REASON_NOT_ACCEPTED":
+            detail = ("The return reason is not accepted; allowed reasons:"
+                      " does not fit, not as described, other.")
+        elif failure.code == "CONDITION_NOT_ACCEPTED":
+            detail = "Only unworn or worn-once conditions are accepted."
         else:
             detail = f"Proposal no longer valid ({failure.code})."
         raise HTTPException(status_code=failure.status_code, detail=detail)

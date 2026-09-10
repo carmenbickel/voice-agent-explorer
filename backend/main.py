@@ -53,6 +53,9 @@ app.mount("/static", StaticFiles(directory=frontend_directory), name="static")
 SESSION_NOT_ACTIVE = "Session is not active."
 CROSS_ORIGIN_REJECTED = "Cross-origin request rejected."
 CORS_SAFE_METHODS = ("GET", "HEAD", "OPTIONS")
+# The demo pins its eligibility clock to the seeded fixture date
+# (2026-06-02T13:20:00+00:00) so the 30-day return window stays testable.
+DEMO_NOW_EPOCH = 1780394400.0
 
 
 def assert_same_origin(http: Request) -> None:
@@ -208,11 +211,11 @@ def chat(request: ChatRequest, http: Request):
                 elif action["tool"] == "propose_return":
                     proposal = actions_module.create_return_proposal(
                         shop_connection(), proposals, session,
-                        action["args"])
+                        action["args"], clock=lambda: DEMO_NOW_EPOCH)
                 elif action["tool"] == "propose_exchange":
                     proposal = actions_module.create_exchange_proposal(
                         shop_connection(), proposals, session,
-                        action["args"])
+                        action["args"], clock=lambda: DEMO_NOW_EPOCH)
                 elif action["tool"] == "propose_handover":
                     proposal = actions_module.create_handover_proposal(
                         shop_connection(), proposals, session,
@@ -306,10 +309,12 @@ def confirm_action(proposal_id: str, http: Request):
                     connection, proposals, proposal_id, session, operations)
             elif kind == "return":
                 result = actions_module.confirm_return(
-                    connection, proposals, proposal_id, session, operations)
+                    connection, proposals, proposal_id, session, operations,
+                    clock=lambda: DEMO_NOW_EPOCH)
             elif kind == "exchange":
                 result = actions_module.confirm_exchange(
-                    connection, proposals, proposal_id, session, operations)
+                    connection, proposals, proposal_id, session, operations,
+                    clock=lambda: DEMO_NOW_EPOCH)
             elif kind == "handover":
                 result = actions_module.confirm_handover(
                     connection, proposals, proposal_id, session, operations)

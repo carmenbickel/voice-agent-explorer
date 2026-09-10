@@ -11,30 +11,37 @@ who want to see how a customer request passes through their architecture.
 
 ## Current status
 
-Today the application is a **text-chat foundation with browser voice turns**.
-It explains voice-AI concepts through a browser UI, FastAPI, and a local
-Ollama model. It supports follow-up questions, a thinking indicator, error
-messages, and retry feedback.
+The repository now delivers the **complete milestone roadmap** (issues
+#14–#24): isolated sessions and demo identity (A1), SQLite shop fixtures
+(A2), browser voice turns with stale-turn protection (B1), structured traces
+with a session-scoped panel (B2), a deterministic document wiki and RAG
+baseline with citations and abstention (C1), optional graph-assisted
+retrieval with a committed comparison report (C2), full commerce workflows —
+confirmed purchase, cancellation, return, exchange (D1–D4) — confirmed
+handover with local support tickets (E1), and cross-cutting security
+hardening (E2). The final entitlement, issue #24 (E3), adds a repeatable
+portfolio acceptance suite and closes documentation.
 
-**Voice (issues B1):** the **Listen** control opens the browser microphone,
-submits the recognized utterance to the session, and speaks the response
-aloud. The status line shows **idle, listening, transcribing, thinking, and
-speaking** states. Browsers without speech APIs, or denied microphone access,
-keep full text chat and display an actionable status. A **Stop** control
-cancels playback or listening; a newer turn cancels prior playback so late
-responses never speak over the newer turn.
+**Delivered behavior:** text chat grounded in the wiki with `[src:…]`
+citations and abstention on unknown topics; voice turns (Listen/Stop;
+idle/listening/transcribing/thinking/speaking states) with text fallback;
+sanitized per-turn traces (executed/skipped/failed, durations) scoped per
+session; typed orchestration where proposals show exact terms and **nothing
+writes** until explicit confirmation (`POST /actions/{proposal_id}/confirm`);
+transactional inventory reservations with idempotent operation resolution
+(`GET /operations/{operation_id}`); supporting journeys scripted end-to-end
+in `tests/test_acceptance.py` (150 tests total).
 
-It currently uses **isolated server-side sessions**: each browser gets an
-opaque HTTP-only session cookie (30-minute idle expiry, configurable via
-`SESSION_IDLE_TIMEOUT_SECONDS`), its own conversation history, and an optional
-binding to one seeded demo customer via the local demo selector. Switching the
-demo customer or resetting the session clears conversation context and pending
-action state only; restarting the backend clears all session state. Each chat
-turn exposes a sanitized trace (stages, statuses, durations) in a panel below
-the response, session-scoped via `GET /traces/{trace_id}`. Voice, shop
-workflows, document RAG, a knowledge graph, and business storage are
-**planned, not implemented — see the roadmap issues**. The existing assistant
-has not yet been changed into a shopping assistant.
+**Remaining limitations:** everything is a local, simulated demo — no real
+payments, carriers, shipping, or human support; identity is simulated, not
+authentication; business records live in a local resettable SQLite file;
+retrieval defaults to a deterministic local hashing embedder (neural
+embeddings via `OLLAMA_EMBED_MODEL` require an embedding-capable Ollama
+server); the demo eligibility clock is pinned to the fixture date (June 2026)
+so the return window stays meaningful; graph-assisted retrieval shows no
+recall gain on the current corpus (mean expansion 0.0 — recorded in the
+committed evaluation report); voice needs a Chromium-based browser with
+microphone permission.
 
 ## Planned customer-support demo
 
@@ -163,6 +170,32 @@ chat behavior are future issues.
 The architecture panel will show the retrieval sources, graph paths, tool
 results, policy outcomes, and timings involved in a turn. A fixed evaluation
 set will compare document-only RAG with graph-assisted RAG.
+
+## Portfolio validation (issue E3)
+
+The full local demo is validated as a repeatable suite:
+
+```bash
+python -m unittest discover -s tests            # 150 automated tests
+python -m backend.rag_eval                      # regenerates knowledge/eval/baseline-report.{json,md}
+```
+
+- `tests/test_acceptance.py` scripts the four journeys end-to-end — buy,
+  cancel, return, exchange — plus the principal denial paths: expired
+  confirmation, shipping-state change races, competing requests on the same
+  line, unknown variants, out-of-stock proposals, cross-customer access
+  attempts (non-disclosing 404s), and expired/idempotent confirmation
+  resolution.
+- Manual browser checks (documented here as the required voice checks):
+  speak a question through **Listen** in a Chromium browser, hear the
+  response via speech synthesis, stop playback with **Stop**, and confirm
+  text remains fully usable with an unsupported API or denied microphone
+  permission.
+- Evaluation results live in `knowledge/eval/baseline-report.{json,md}`:
+  document-only versus graph-assisted retrieval on the fixed 12-question
+  set, with model/index versions (`generator`, `chunking`, `embedder`
+  fields), mean recall 1.0, abstention respected, and the graph summary
+  recording its (current) zero expansion gain.
 
 ## Architecture and roadmap
 

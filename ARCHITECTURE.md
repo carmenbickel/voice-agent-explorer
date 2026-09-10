@@ -27,9 +27,9 @@ already implemented. This documentation implements issue #11 only.
 | Area | Current implementation | Target |
 | --- | --- | --- |
 | UI | Browser text chat with loading/error/retry feedback | Text and voice, sources, action confirmations, architecture panel |
-| Backend | FastAPI serves `/`, `/static`, `/health`, `/chat` | Session-aware chat and controlled domain services |
+| Backend | FastAPI serves `/`, `/static`, `/health`, `/chat`, and session endpoints (`POST /sessions`, `GET /sessions/customers`, `POST /sessions/customer`, `POST /sessions/reset`) with an opaque HTTP-only session cookie | Session-aware chat, traces, and controlled domain services |
 | Agent | Explains voice-AI concepts using Ollama | Customer-support orchestration with retrieval and bounded tool calls |
-| State | One shared in-memory history with a lock | Isolated sessions and persisted demo business records |
+| State | Isolated in-memory sessions: per-session history, pending action state, demo-customer binding, 30-minute idle expiry | Isolated sessions plus persisted demo business records |
 | Model | Ollama `llama3.2:3b` | Same initial chat model, evaluated for structured tool proposals |
 | Knowledge | No retrieval pipeline | Document RAG and graph-assisted retrieval |
 | Actions | None | Simulated purchase, return, exchange, cancellation, and support ticket |

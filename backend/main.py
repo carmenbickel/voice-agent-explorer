@@ -10,6 +10,15 @@ from fastapi.staticfiles import StaticFiles
 from backend.agent import run_chat_turn
 from backend.models import ChatRequest, ChatResponse, DemoCustomerSelection, SwitchCustomerRequest
 from backend.ollama_client import OllamaError
+from backend.rag import (
+    assemble_messages,
+    build_index,
+    build_evidence_context,
+    load_articles,
+    remove_invalid_citations,
+    retrieve,
+    validate_citations,
+)
 from backend.sessions import (
     DEMO_CUSTOMERS,
     SESSION_COOKIE,
@@ -28,6 +37,8 @@ app = FastAPI(
 
 manager = SessionManager(idle_timeout_seconds=idle_timeout_from_env())
 traces = TraceStore()
+knowledge_corpus = load_articles()
+knowledge_index = build_index(corpus=knowledge_corpus)
 frontend_directory = Path(__file__).resolve().parent.parent / "frontend"
 app.mount("/static", StaticFiles(directory=frontend_directory), name="static")
 
@@ -73,8 +84,6 @@ def _begin_trace(session: Session, turn_id: str):
         trace["turn_id"] = turn_id
         session.traces.append(trace["trace_id"])
         traces.record(trace, "session resolved", "executed")
-        traces.record(trace, "retrieval", "skipped",
-                      detail="not available before issue C1")
         return trace
     except Exception:
         return None
@@ -98,8 +107,28 @@ def chat(request: ChatRequest, http: Request):
     turn_id = secrets.token_urlsafe(12)
     trace = _begin_trace(session, turn_id)
     started = time.time()
+    sources = []
     try:
-        response = run_chat_turn(session, request.message)
+        evidence_text = None
+        retrieved = []
+        try:
+            retrieved = retrieve(knowledge_index, request.message)
+            if not retrieved:
+                _record_stage(trace, "retrieval", "executed",
+                              detail="no matching evidence")
+        except Exception as failure:  # index build or embedding failure
+            _record_stage(trace, "retrieval", "failed")
+            retrieved = []
+        if retrieved:
+            sources = sorted(chunk["chunk_id"] for chunk in retrieved)
+            evidence_text = assemble_messages(
+                build_evidence_context(retrieved))[-1]["content"]
+            _record_stage(trace, "retrieval", "executed",
+                          detail=", ".join(sources))
+        response = run_chat_turn(session, request.message, evidence_text)
+        sources = list(sources)
+        if retrieved:
+            response = remove_invalid_citations(response, retrieved)
         _record_stage(trace, "model", "executed",
                       duration_ms=(time.time() - started) * 1000)
         _record_stage(trace, "response assembly", "executed")
@@ -107,6 +136,7 @@ def chat(request: ChatRequest, http: Request):
             response=response,
             turn_id=turn_id,
             trace_id=trace["trace_id"] if trace else None,
+            sources=sources,
         )
 
     except OllamaError as exc:

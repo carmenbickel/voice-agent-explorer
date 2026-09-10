@@ -55,6 +55,28 @@ customers, and seeded orders in the four fulfillment states. Payments,
 shipping, refunds, and human support are simulated; no real merchant
 integrations are planned for the first version.
 
+## Wiki and retrieval (issues C1)
+
+`backend/rag.py` ingests the Stepwise Shoes wiki (12 draft articles in
+`knowledge/articles/` with validated front matter — id, version, language,
+scope, effective dates) into heading-aware chunks with stable IDs and hashes.
+Retrieval is bounded (max 4 chunks per question) and deterministic: the local
+hashing embedder scores how much of the question's content words an article
+chunk covers; unknown topics (e.g. wedding dresses) retrieve nothing instead
+of weak evidence. Embedding model selection: `OLLAMA_EMBED_MODEL` can point to
+a neural embedder on an embedding-capable Ollama server; the default is the
+fully local, reproducible hashing embedder.
+
+Chat behavior: questions that retrieve evidence ground the answer in the
+retrieved passages, the model is instructed to cite `[src:<chunk_id>]`, and
+answers may only cite retrieved passages (fabricated citation tags are
+removed). Insufficient evidence must produce a clarifying question or an
+explicit limitation — the model may never invent stock, prices, ownership, or
+eligibility, which belong to the catalog/workflow issues. A fixed baseline
+evaluation set (`backend/rag_eval.py`; 12 questions) is committed with a
+repeatable report in `knowledge/eval/`; regenerate with
+`python -m backend.rag_eval` (needs no Ollama).
+
 ## Demo shop fixtures (SQLite)
 
 `backend/shop.py` owns the Stepwise Shoes demo data. Business records live in a

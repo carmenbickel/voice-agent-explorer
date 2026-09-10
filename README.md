@@ -27,9 +27,10 @@ into a shopping assistant.
 
 ## Planned customer-support demo
 
-The next phase uses an online shop to demonstrate four journeys. The proposed
-shop is **Stepwise Shoes**, a fictional footwear retailer; the specific shop
-choice still needs confirmation.
+The next phase uses an online shop to demonstrate four journeys. The demo shop
+is **Stepwise Shoes**, a fictional footwear retailer. Shop fixtures (see below)
+are draft demo data for the local demonstration; they contain no real shop or
+customer information.
 
 | Journey | Example | Planned result |
 | --- | --- | --- |
@@ -38,10 +39,50 @@ choice still needs confirmation.
 | Exchange | “Can I exchange size 39 for size 40?” | Replacement-stock check and confirmed exchange request |
 | Cancel | “Please cancel my order.” | Ownership/fulfillment checks and cancellation when permitted |
 
-The initial proposal uses six products, limited variants, fictional customers
-and orders, and one currency/shipping region. Payments, shipping, refunds, and
-human support are simulated; no real merchant integrations are planned for the
-first version.
+The initial fixtures use six products, limited variants, two synthetic demo
+customers, and seeded orders in the four fulfillment states. Payments,
+shipping, refunds, and human support are simulated; no real merchant
+integrations are planned for the first version.
+
+## Demo shop fixtures (SQLite)
+
+`backend/shop.py` owns the Stepwise Shoes demo data. Business records live in a
+local SQLite database (default `shop.db` in the repository root, path
+override via the `SHOP_DB` environment variable; the file is gitignored):
+
+```bash
+python -m backend.shop seed      # seed OR reset: wipes and restores canonical data
+```
+
+**Reset behavior:** seeding deletes *all* business records (orders, order
+lines, carts, cart lines) including inventory reservations, then re-inserts
+the canonical fixtures — six products with 18 variants, inventory with explicit
+`reserved` quantities (available = on-hand − reserved, never negative), two
+demo customers, and eight orders covering processing, shipped, delivered, and
+cancelled states. Order snapshots (item name, size, colour, unit price),
+customer ownership, fulfillment state, delivery time, and the policy version
+(`policy-2026-06-v1`) are stored with fixed timestamps, so repeated
+initializations produce identical data. Conversation sessions and
+assistant history are not touched by a shop reset.
+
+Seeded products (prices in integer EUR cents, draft demo data, Subject to
+review):
+
+| ID | Product | Category | Sizes (example colour) | Price |
+| --- | --- | --- | --- | --- |
+| `prod_summit` | Summit Trail | trail-running | 38–40 (olive/coral) | €129.00 |
+| `prod_fjell` | Fjell Trek | hiking | 38–40 (brown/grey) | €159.00 |
+| `prod_storm` | Storm Step GTX | hiking | 36/38/40 (black/anthracite) | €189.00 |
+| `prod_city` | City Walk | sneakers | 37/39/41 (white/navy) | €99.00 |
+| `prod_swift` | Swift Run | running | 38/39/41 (blue/yellow) | €119.00 |
+| `prod_sunny` | Sunny Slide | sandals | 36/39/41 (beige/sand/black) | €59.00 |
+
+Demo customers reuse the session demo identity IDs `demo_maya` and `demo_leo`,
+each owning four seeded orders (one per fulfillment state). Catalog reads
+(`Catalog.list_products`, `Catalog.get_variant`, `Catalog.list_customer_orders`)
+return stable IDs, current price, size, colour, and stock from SQLite — never
+prompt text. Reservation of stock (on the purchase path) and shop-specific
+chat behavior are future issues.
 
 ### Why RAG and a knowledge graph?
 
@@ -126,6 +167,7 @@ Set environment variables before starting Uvicorn to override the defaults:
 | `OLLAMA_BASE_URL` | `http://localhost:11434` |
 | `OLLAMA_MODEL` | `llama3.2:3b` |
 | `SESSION_IDLE_TIMEOUT_SECONDS` | `1800` (30 minutes) |
+| `SHOP_DB` | `shop.db` in the repository root |
 
 If selecting another model, pull it into Ollama first. The embedding model
 mentioned in the target architecture is not used by the current application.
@@ -163,17 +205,18 @@ git diff --check
 
 The automated tests mock Ollama, so a running model is not required for them.
 They cover conversation context, failed-turn behavior, API validation/errors,
-and serving the frontend page/assets. For a manual browser check, exchange two
-messages, verify the thinking state and response order, and check retry behavior
-when the model service is unavailable.
+session isolation, shop fixtures/catalog reads, and serving the frontend
+page/assets. For a manual browser check, exchange two messages, verify the
+thinking state and response order, and check retry behavior when the model
+service is unavailable.
 
 ## Project structure
 
 ```text
-backend/           FastAPI, conversation agent, Ollama client, API models
+backend/           FastAPI, conversation agent, Ollama client, sessions, shop fixtures
 frontend/          Browser HTML, JavaScript, and CSS
 knowledge/         Reserved for knowledge content; retrieval is not built yet
-tests/             Current automated API/agent checks
+tests/             Current automated API/agent/shop checks
 ARCHITECTURE.md    Target design, Mermaid diagrams, and implementation milestones
 docs/diagrams/     Editable SVG architecture illustrations
 requirements.txt  Current Python dependencies

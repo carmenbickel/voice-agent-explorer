@@ -77,6 +77,23 @@ evaluation set (`backend/rag_eval.py`; 12 questions) is committed with a
 repeatable report in `knowledge/eval/`; regenerate with
 `python -m backend.rag_eval` (needs no Ollama).
 
+## Commerce workflows (issue D1)
+
+Chat answers may end with a typed `ACTION {…}` line proposing an allowlisted
+tool (purchase proposals only in this issue). Argument schemas are validated;
+unknown tools, malformed actions, and repeated actions are rejected without
+harm. When a purchase applies, the response carries an `action_proposal`
+showing exact items, quantities, total, and proposal ID — **nothing is
+written** until you press Confirm purchase, which calls
+`POST /actions/{proposal_id}/confirm`. That endpoint rechecks the quote
+(current SQLite price), ownership (server session), quantity, and stock
+inside one transaction, reserves inventory, and creates the processing order;
+forgetting nothing, repeated confirmations resolve by operation ID without
+duplicating the order (`GET /operations/{operation_id}` for
+timeout/unknown outcomes). Expired or price-changed proposals require a new
+confirmation. Anonymous sessions cannot buy. Concurrent buyers cannot
+over-reserve the last available variant.
+
 ## Demo shop fixtures (SQLite)
 
 `backend/shop.py` owns the Stepwise Shoes demo data. Business records live in a

@@ -144,6 +144,55 @@ function speakResponse(text, turnId) {
   window.speechSynthesis.speak(utterance);
 }
 
+/** Show the exact purchase proposal and its explicit confirm control. */
+function showProposal(proposal) {
+  const panel = document.createElement('div');
+  panel.className = 'proposal';
+  const title = document.createElement('p');
+  title.className = 'proposal-title';
+  title.textContent = `Purchase proposal ${proposal.proposal_id.slice(0, 8)}… (valid for ten minutes)`;
+  panel.append(title);
+  const list = document.createElement('ul');
+  for (const item of proposal.items) {
+    const line = document.createElement('li');
+    line.textContent = `${item.quantity} × ${item.name} size ${item.size} ${item.colour} — €${(item.unit_price_cents / 100).toFixed(2)}`;
+    list.append(line);
+  }
+  const total = document.createElement('li');
+  total.className = 'proposal-total';
+  total.textContent = `Total: €${(proposal.total_cents / 100).toFixed(2)}`;
+  list.append(total);
+  panel.append(list);
+  const confirmButton = document.createElement('button');
+  confirmButton.type = 'button';
+  confirmButton.textContent = 'Confirm purchase';
+  confirmButton.addEventListener('click', async () => {
+    confirmButton.disabled = true;
+    const response = await fetch(
+      `/actions/${encodeURIComponent(proposal.proposal_id)}/confirm`,
+      { method: 'POST' });
+    if (response.ok) {
+      const result = await response.json();
+      replaceWithResult(panel,
+        `Purchase confirmed. Reference: ${result.order_id} (processing).`);
+    } else {
+      const detail = (await response.json().catch(() => ({}))).detail;
+      replaceWithResult(panel, detail ||
+        'Proposal is no longer valid. Ask again for a new proposal.');
+    }
+  });
+  panel.append(confirmButton);
+  messages.append(panel);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+function replaceWithResult(panel, text) {
+  const note = document.createElement('p');
+  note.className = 'proposal-note';
+  note.textContent = text;
+  panel.replaceChildren(note);
+}
+
 async function submitMessage(message) {
   if (pending || !message || !sessionReady) return;
   if (voiceState === 'speaking') cancelSpeech();
@@ -173,6 +222,7 @@ async function submitMessage(message) {
       throw new Error('Invalid response');
     }
     addMessage('assistant', data.response);
+    if (data.action_proposal) showProposal(data.action_proposal);
     showTrace(data, turnId);
     if (speechApi.synthesisSupported) {
       speakResponse(data.response, turnId);

@@ -26,13 +26,13 @@ already implemented. This documentation implements issue #11 only.
 
 | Area | Current implementation | Target |
 | --- | --- | --- |
-| UI | Browser text chat with loading/error/retry feedback, plus browser voice turns (listen/transcribe/think/speak states, stop control, stale-turn protection) | Text and voice, sources, action confirmations, architecture panel |
-| Backend | FastAPI serves `/`, `/static`, `/health`, `/chat` with sanitized per-turn traces plus session endpoints (`POST /sessions`, `GET /sessions/customers`, `POST /sessions/customer`, `POST /sessions/reset`, `GET /traces/{trace_id}`) using an opaque HTTP-only session cookie | Session-aware chat, traces, and controlled domain services |
-| Agent | Explains voice-AI concepts using Ollama | Customer-support orchestration with retrieval and bounded tool calls |
-| State | Isolated in-memory sessions (session history, pending state, demo-customer binding, 30-minute idle expiry) plus seeded SQLite shop fixtures with deterministic seed/reset | Isolated sessions plus persisted demo business records |
-| Model | Ollama `llama3.2:3b` | Same initial chat model, evaluated for structured tool proposals |
-| Knowledge | No retrieval pipeline; SQLite catalog fixtures provide authoritative product/variant/stock/order data | Document RAG and graph-assisted retrieval |
-| Actions | None | Simulated purchase, return, exchange, cancellation, and support ticket |
+| UI | Text + browser voice chat, sources, architecture trace panel (executed/skipped/failed with durations), proposal confirm controls | Same, with curated creative panel polish |
+| Backend | FastAPI serves `/`, `/static`, `/health`, grounded `/chat` with traces, session and workflow endpoints, same-origin/CSRF enforcement | Delivered (target met) |
+| Agent | Voice-AI-explainer grounded when shop evidence exists; typed tool proposals for purchase, cancellation, return, exchange, and handover with bounded dispatch | Further conversation tuning, model upgrades |
+| State | Isolated sessions plus deterministic SQLite shop fixtures and business records (orders, reservations, returns, exchanges, tickets) with idempotent operations | Delivered; multi-currency/regional scope out of demo scope |
+| Model | Ollama `llama3.2:3b` with hashing-embedder RAG | Same model, optional neural embeddings via env |
+| Knowledge | 12 wiki articles + local graph, retrieval paths reported in traces | Larger curated corpus; production embedder |
+| Actions | All four journeys live via typed proposals with transactional commits, idempotent operations, and handover tickets | Real integrations remain out of demo scope |
 
 ## 2. Bounded business scenario
 

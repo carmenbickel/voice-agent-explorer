@@ -1,3 +1,4 @@
+import os
 import secrets
 import time
 from pathlib import Path
@@ -8,6 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend import actions as actions_module
+from backend import graph_rag
 from backend.agent import run_chat_turn
 from backend.models import ChatRequest, ChatResponse, DemoCustomerSelection, SwitchCustomerRequest
 from backend.ollama_client import OllamaError
@@ -43,6 +45,8 @@ proposals = actions_module.ProposalStore(clock=time.time)
 operations = actions_module.OperationStore()
 knowledge_corpus = load_articles()
 knowledge_index = build_index(corpus=knowledge_corpus)
+knowledge_graph = graph_rag.load_graph()
+RAG_MODE = os.environ.get("RAG_MODE", "document-only")
 frontend_directory = Path(__file__).resolve().parent.parent / "frontend"
 app.mount("/static", StaticFiles(directory=frontend_directory), name="static")
 
@@ -136,7 +140,13 @@ def chat(request: ChatRequest, http: Request):
         evidence_text = None
         retrieved = []
         try:
-            retrieved = retrieve(knowledge_index, request.message)
+            if RAG_MODE == "graph":
+                retrieved = graph_rag.graph_assisted_chunks(
+                    knowledge_index, request.message, knowledge_graph)
+                retrieved = [chunk for chunk in retrieved
+                             if not chunk.get("graph_paths") or True]
+            else:
+                retrieved = retrieve(knowledge_index, request.message)
             if not retrieved:
                 _record_stage(trace, "retrieval", "executed",
                               detail="no matching evidence")

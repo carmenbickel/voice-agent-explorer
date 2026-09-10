@@ -177,7 +177,8 @@ def chat(request: ChatRequest, http: Request):
         elif action and action["tool"] in ("propose_purchase",
                                            "propose_cancellation",
                                            "propose_return",
-                                           "propose_exchange"):
+                                           "propose_exchange",
+                                           "propose_handover"):
             try:
                 if action["tool"] == "propose_purchase":
                     proposal = actions_module.create_purchase_proposal(
@@ -190,12 +191,17 @@ def chat(request: ChatRequest, http: Request):
                     proposal = actions_module.create_exchange_proposal(
                         shop_connection(), proposals, session,
                         action["args"])
+                elif action["tool"] == "propose_handover":
+                    proposal = actions_module.create_handover_proposal(
+                        shop_connection(), proposals, session,
+                        action["args"])
                 else:
                     proposal = actions_module.create_cancellation_proposal(
                         shop_connection(), proposals, session,
                         action["args"], operations)
                 if isinstance(proposal, dict) and proposal.get("kind") in (
-                        "purchase", "cancellation", "return", "exchange"):
+                        "purchase", "cancellation", "return", "exchange",
+                        "handover"):
                     action_proposal = proposal
                     _record_stage(trace, "proposal", "executed",
                                   detail=proposal["proposal_id"])
@@ -272,6 +278,9 @@ def confirm_action(proposal_id: str, http: Request):
                     connection, proposals, proposal_id, session, operations)
             elif kind == "exchange":
                 result = actions_module.confirm_exchange(
+                    connection, proposals, proposal_id, session, operations)
+            elif kind == "handover":
+                result = actions_module.confirm_handover(
                     connection, proposals, proposal_id, session, operations)
             else:
                 result = actions_module.confirm_purchase(

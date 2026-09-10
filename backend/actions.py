@@ -413,6 +413,70 @@ def confirm_exchange(connection, proposals, proposal_id: str, session,
     return view
 
 
+def create_handover_proposal(connection, proposals, session, args):
+    """A person/unresolved request yields a proposal, never an auto ticket."""
+    from backend.tools import validate_args
+    if session.customer_id is None:
+        raise ProposalError(400, "DEMO_CUSTOMER_REQUIRED")
+    args = validate_args("propose_handover", args)
+    payload = {"unresolved_issue": args["unresolved_issue"][:200]}
+    proposal = proposals.create(
+        owner_session=session.id, owner_customer=session.customer_id,
+        kind="handover", payload=payload)
+    proposal["payload_hash"] = payload_hash(payload)
+    view = proposal_view(proposal, proposals)
+    view["terms"] = (
+        "A simulated human-support ticket covering this unresolved issue;"
+        " no email, callback, live transfer, refund, or physical fulfillment"
+        " is offered in this demo.")
+    return view
+
+
+def confirm_handover(connection, proposals, proposal_id: str, session,
+                     operations) -> dict:
+    """Confirmation creates exactly one local ticket with real reference."""
+    proposal = proposals.view(proposal_id)
+    if proposal is None or proposal["owner_session"] != session.id:
+        raise ProposalError(404, "PROPOSAL_NOT_AVAILABLE")
+    if proposal["status"] == "confirmed":
+        view = operations.as_dict(proposal["operation_id"], idempotent=True)
+        view["ticket_reference"] = proposal["payload"].get("ticket_reference")
+        view["ticket_state"] = "requested"
+        return view
+    if proposals.expired(proposal):
+        proposals.consume(proposal_id)
+        raise ProposalError(409, "PROPOSAL_EXPIRED")
+
+    payload = proposal["payload"]
+    connection.execute("BEGIN IMMEDIATE")
+    try:
+        ticket_reference = "tkt_" + secrets.token_urlsafe(8).lower()
+        stamp = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
+        connection.execute(
+            "INSERT INTO support_tickets (id, customer_id, order_id,"
+            " operation_id, unresolved_issue, attempted_steps, state,"
+            " created_utc) VALUES (?, ?, NULL, NULL, ?, ?, 'requested', ?)",
+            (ticket_reference, session.customer_id,
+             payload["unresolved_issue"], "chat-journey", stamp))
+        operation_id = "op_" + secrets.token_urlsafe(10)
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+
+    proposal["status"] = "confirmed"
+    proposal["operation_id"] = operation_id
+    proposal["payload"]["ticket_reference"] = ticket_reference
+    operations.record(operation_id, proposal, payload["unresolved_issue"])
+    view = operations.as_dict(operation_id, idempotent=False)
+    view["ticket_reference"] = ticket_reference
+    view["ticket_state"] = "requested"
+    view["explanation"] = (
+        "This is a local demo ticket only: no live transfer, callback,"
+        " email, refund, or fulfillment is offered.")
+    return view
+
+
 def confirm_return(connection, proposals, proposal_id: str, session,
                    operations, clock=None) -> dict:
     """Commit requires a full eligibility + ownership recheck in the same

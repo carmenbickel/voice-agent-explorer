@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1260" height="920" viewBox="0 0 1260 920" role="img" aria-labelledby="title description">
+  <title id="title">Target layered customer-support architecture</title>
+  <desc id="description">Users sit above presentation, application interfaces, support capabilities, adapters, and data sources or external services. Three vertical pillars span the stack: communication, LLMOps and operational management, and security and privacy. Team responsibilities are described in the accompanying architecture document.</desc>
+  <defs>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #183047; }
+      .heading { font-size: 23px; font-weight: 700; }
+      .label { font-size: 20px; font-weight: 700; }
+      .detail { font-size: 18px; }
+      .caption { font-size: 16px; fill: #43576a; }
+      .box { stroke-width: 1.5; }
+      .connector { fill: none; stroke: #52677d; stroke-width: 2; marker-end: url(#arrow); }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#52677d"/>
+    </marker>
+  </defs>
+
+  <rect width="1260" height="920" fill="#ffffff"/>
+  <text x="28" y="34" class="heading">Target layered architecture</text>
+  <text x="28" y="60" class="caption">Logical responsibilities within the local application — not separate deployments</text>
+
+  <!-- The main stack occupies x=28..920. Pillars span its full height. -->
+  <rect x="28" y="88" width="892" height="64" rx="20" fill="#eef1c7" stroke="#788640" class="box"/>
+  <text x="474" y="127" text-anchor="middle" class="label">CUSTOMERS · Browser text and voice</text>
+  <path d="M 474 155 V 177" class="connector"/>
+
+  <rect x="28" y="184" width="892" height="124" rx="8" fill="#f3f7ff" stroke="#6586b1" class="box"/>
+  <text x="48" y="212" class="label">PRESENTATION LAYER</text>
+  <rect x="44" y="226" width="414" height="66" rx="5" fill="#dceafe" stroke="#87a8d0"/>
+  <rect x="470" y="226" width="434" height="66" rx="5" fill="#dceafe" stroke="#87a8d0"/>
+  <text x="251" y="252" text-anchor="middle" class="label">UI components</text>
+  <text x="251" y="277" text-anchor="middle" class="detail">Chat · sources · architecture panel</text>
+  <text x="687" y="252" text-anchor="middle" class="label">UI interaction flow</text>
+  <text x="687" y="277" text-anchor="middle" class="detail">Voice controls · turns · confirmations</text>
+  <path d="M 474 311 V 333" class="connector"/>
+
+  <rect x="28" y="340" width="892" height="90" rx="8" fill="#daeaf2" stroke="#4b8aa9" class="box"/>
+  <text x="474" y="372" text-anchor="middle" class="label">APPLICATION / SERVICE INTERFACES</text>
+  <text x="474" y="400" text-anchor="middle" class="detail">FastAPI · session and identity context · validated requests · action confirmation</text>
+  <path d="M 474 433 V 455" class="connector"/>
+
+  <rect x="28" y="462" width="892" height="150" rx="8" fill="#f3f2fa" stroke="#8980ac" class="box"/>
+  <text x="48" y="490" class="label">SUPPORT CAPABILITIES / DOMAIN LAYER</text>
+  <rect x="44" y="504" width="272" height="92" rx="5" fill="#e9e0f8" stroke="#a18bbf"/>
+  <rect x="328" y="504" width="278" height="92" rx="5" fill="#dff2ed" stroke="#75aa9c"/>
+  <rect x="618" y="504" width="286" height="92" rx="5" fill="#fff0d3" stroke="#c3a361"/>
+  <text x="180" y="532" text-anchor="middle" class="label">Dialog management</text>
+  <text x="180" y="558" text-anchor="middle" class="detail">Intent · orchestration</text>
+  <text x="180" y="583" text-anchor="middle" class="detail">Context · response assembly</text>
+  <text x="467" y="532" text-anchor="middle" class="label">Knowledge services</text>
+  <text x="467" y="558" text-anchor="middle" class="detail">Document RAG · wiki graph</text>
+  <text x="467" y="583" text-anchor="middle" class="detail">Retrieval · citations</text>
+  <text x="761" y="532" text-anchor="middle" class="label">Business services</text>
+  <text x="761" y="558" text-anchor="middle" class="detail">Workflows · rules · entities</text>
+  <text x="761" y="583" text-anchor="middle" class="detail">Validated tools · handover</text>
+  <path d="M 474 615 V 628 H 243 V 640" class="connector"/>
+  <path d="M 474 628 H 697 V 640" class="connector"/>
+
+  <rect x="28" y="644" width="430" height="104" rx="8" fill="#e6f1d4" stroke="#86a65e" class="box"/>
+  <rect x="474" y="644" width="446" height="104" rx="8" fill="#e6f1d4" stroke="#86a65e" class="box"/>
+  <text x="243" y="675" text-anchor="middle" class="label">DATA ACCESS ADAPTERS</text>
+  <text x="243" y="704" text-anchor="middle" class="detail">Repositories · transactions</text>
+  <text x="243" y="730" text-anchor="middle" class="detail">Vector search · graph and article loading</text>
+  <text x="697" y="675" text-anchor="middle" class="label">SERVICE GATEWAYS</text>
+  <text x="697" y="704" text-anchor="middle" class="detail">Ollama client · browser speech adapter</text>
+  <text x="697" y="730" text-anchor="middle" class="detail">Future merchant / support connectors</text>
+  <path d="M 243 751 V 773" class="connector"/>
+  <path d="M 697 751 V 773" class="connector"/>
+
+  <rect x="28" y="780" width="430" height="96" rx="20" fill="#f0f5e7" stroke="#86a65e" class="box"/>
+  <rect x="474" y="780" width="446" height="96" rx="20" fill="#f0f5e7" stroke="#86a65e" class="box"/>
+  <text x="243" y="811" text-anchor="middle" class="label">DATA SOURCES</text>
+  <text x="243" y="838" text-anchor="middle" class="detail">SQLite · wiki articles · graph JSON</text>
+  <text x="243" y="863" text-anchor="middle" class="detail">Embedding index</text>
+  <text x="697" y="811" text-anchor="middle" class="label">MODEL / EXTERNAL SERVICES</text>
+  <text x="697" y="838" text-anchor="middle" class="detail">Ollama chat and embeddings · speech APIs</text>
+  <text x="697" y="863" text-anchor="middle" class="detail">Real commerce / ticket APIs: future only</text>
+
+  <!-- Cross-cutting pillars intentionally have no per-layer arrow wiring. -->
+  <rect x="944" y="88" width="92" height="788" rx="8" fill="#ffebcf" stroke="#bc8c48" class="box"/>
+  <rect x="1048" y="88" width="92" height="788" rx="8" fill="#e9e0f8" stroke="#9174b5" class="box"/>
+  <rect x="1152" y="88" width="80" height="788" rx="8" fill="#fde3df" stroke="#b87870" class="box"/>
+  <g transform="translate(990 482) rotate(-90)">
+    <text x="0" y="-8" text-anchor="middle" class="label">COMMUNICATION</text>
+    <text x="0" y="20" text-anchor="middle" class="detail">Contracts · correlation IDs · timeouts · bounded retries</text>
+  </g>
+  <g transform="translate(1094 482) rotate(-90)">
+    <text x="0" y="-8" text-anchor="middle" class="label">LLMOPS / OPERATIONAL MANAGEMENT</text>
+    <text x="0" y="20" text-anchor="middle" class="detail">Evaluation · versions · traces · latency · releases · rollback</text>
+  </g>
+  <g transform="translate(1192 482) rotate(-90)">
+    <text x="0" y="-8" text-anchor="middle" class="label">SECURITY / PRIVACY</text>
+    <text x="0" y="20" text-anchor="middle" class="detail">Identity · authorization · validation · retention · audit</text>
+  </g>
+
+  <text x="28" y="905" class="caption">Arrows: logical dependencies. Vertical pillars: shared concerns across all layers. Target design; not all features exist yet.</text>
+</svg>

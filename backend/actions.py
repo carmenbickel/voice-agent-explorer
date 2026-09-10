@@ -195,6 +195,137 @@ def create_cancellation_proposal(connection, proposals, session, args,
     return proposal_view(proposal, proposals)
 
 
+RETURN_WINDOW_DAYS = 30
+RETURN_REASONS = frozenset(("does_not_fit", "not_as_described", "other"))
+RETURN_CONDITIONS = frozenset(("unworn", "worn_once"))
+RETURN_STATES = ("requested", "inspected", "arrived", "restocked", "refunded")
+
+
+def create_return_proposal(connection, proposals, session, args, clock=None):
+    """Versioned eligibility: owned delivered line + policy window."""
+    from backend.tools import validate_args
+    if session.customer_id is None:
+        raise ProposalError(400, "DEMO_CUSTOMER_REQUIRED")
+    args = validate_args("propose_return", args)
+    if args["reason"] not in RETURN_REASONS:
+        raise ProposalError(409, "REASON_NOT_ACCEPTED")
+    if args["condition"] not in RETURN_CONDITIONS:
+        raise ProposalError(409, "CONDITION_NOT_ACCEPTED")
+    now_epoch = clock() if clock else time.time()
+    line = connection.execute(
+        "SELECT o.id, o.customer_id, o.state, o.policy_version,"
+        " o.delivery_utc, ol.unit_price_cents, ol.quantity"
+        " FROM orders o JOIN order_lines ol ON ol.order_id = o.id"
+        " WHERE o.id = ? AND ol.variant_id = ?",
+        (args["order_id"], args["variant_id"])).fetchone()
+    if line is None or line["customer_id"] != session.customer_id:
+        raise ProposalError(404, "PROPOSAL_NOT_AVAILABLE")
+    if line["state"] != "delivered":
+        raise ProposalError(409, "NOT_RETURNABLE_YET")
+    active = connection.execute(
+        "SELECT state FROM returns WHERE order_id = ? AND variant_id = ?"
+        " AND state = 'requested'",
+        (args["order_id"], args["variant_id"])).fetchone()
+    if active is not None:
+        raise ProposalError(409, "REQUEST_ALREADY_ACTIVE")
+    policy_version = line["policy_version"]
+    if not line["delivery_utc"] or not policy_version:
+        raise ProposalError(409, "PROPOSAL_CHANGED")
+    import calendar
+    delivered_epoch = calendar.timegm(time.strptime(
+        line["delivery_utc"][:19], "%Y-%m-%dT%H:%M:%S"))
+    if now_epoch > delivered_epoch + RETURN_WINDOW_DAYS * 86400:
+        raise ProposalError(409, "RETURN_WINDOW_EXPIRED")
+    payload = {
+        "order_id": args["order_id"],
+        "variant_id": args["variant_id"],
+        "reason": args["reason"],
+        "condition": args["condition"],
+        "unit_price_cents": line["unit_price_cents"],
+        "quantity": line["quantity"],
+    }
+    proposal = proposals.create(
+        owner_session=session.id, owner_customer=session.customer_id,
+        kind="return", payload=payload)
+    proposal["payload_hash"] = payload_hash(payload)
+    view = proposal_view(proposal, proposals)
+    view["terms"] = (
+        f"Return of {payload['quantity']} unit(s) of {args['variant_id']} for"
+        f" reason {args['reason']} under policy {policy_version}.")
+    return view
+
+
+def confirm_return(connection, proposals, proposal_id: str, session,
+                   operations, clock=None) -> dict:
+    """Commit requires a full eligibility + ownership recheck in the same
+    transaction as creating the persisted return request."""
+    proposal = proposals.view(proposal_id)
+    if proposal is None or proposal["owner_session"] != session.id:
+        raise ProposalError(404, "PROPOSAL_NOT_AVAILABLE")
+    if proposal["status"] == "confirmed":
+        view = operations.as_dict(proposal["operation_id"], idempotent=True)
+        view["return_reference"] = proposal["payload"].get("reference")
+        view["return_state"] = "requested"
+        return view
+    if proposals.expired(proposal):
+        proposals.consume(proposal_id)
+        raise ProposalError(409, "PROPOSAL_EXPIRED")
+
+    now_epoch = clock() if clock else time.time()
+    payload = proposal["payload"]
+    connection.execute("BEGIN IMMEDIATE")
+    try:
+        line = connection.execute(
+            "SELECT o.id, o.customer_id, o.state, o.policy_version,"
+            " o.delivery_utc, ol.unit_price_cents, ol.quantity FROM orders o"
+            " JOIN order_lines ol ON ol.order_id = o.id"
+            " WHERE o.id = ? AND ol.variant_id = ?",
+            (payload["order_id"], payload["variant_id"])).fetchone()
+        if line is None or line["customer_id"] != session.customer_id:
+            raise ProposalError(404, "PROPOSAL_NOT_AVAILABLE")
+        if line["state"] != "delivered":
+            raise ProposalError(409, "NOT_RETURNABLE_YET")
+        active = connection.execute(
+            "SELECT state FROM returns WHERE order_id = ? AND variant_id = ?"
+            " AND state = 'requested'",
+            (payload["order_id"], payload["variant_id"])).fetchone()
+        if active is not None:
+            raise ProposalError(409, "REQUEST_ALREADY_ACTIVE")
+        import calendar
+        delivered_epoch = calendar.timegm(time.strptime(
+            line["delivery_utc"][:19], "%Y-%m-%dT%H:%M:%S"))
+        if now_epoch > delivered_epoch + RETURN_WINDOW_DAYS * 86400:
+            raise ProposalError(409, "RETURN_WINDOW_EXPIRED")
+        reference = "ret_" + secrets.token_urlsafe(8).lower()
+        stamp = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
+        connection.execute(
+            "INSERT INTO returns (id, customer_id, order_id, variant_id,"
+            " reason, condition, policy_version, state, created_utc)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, 'requested', ?)",
+            (reference, session.customer_id, payload["order_id"],
+             payload["variant_id"], payload["reason"],
+             payload["condition"], line["policy_version"], stamp))
+        operation_id = "op_" + secrets.token_urlsafe(10)
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+
+    # The proposal remains in "confirmed" state for idempotent resolution;
+    # repeated confirmations resolve by operation ID without a new write.
+    proposal["status"] = "confirmed"
+    proposal["operation_id"] = operation_id
+    proposal["payload"]["reference"] = reference
+    operations.record(operation_id, proposal, payload["order_id"])
+    view = operations.as_dict(operation_id, idempotent=False)
+    view["return_reference"] = reference
+    view["return_state"] = "requested"
+    view["explanation"] = (
+        "This registers the return request only: inspection, restock, and"
+        " refund happen later in the real shop.")
+    return view
+
+
 def confirm_cancellation(connection, proposals,
                          proposal_id: str, session, operations) -> dict:
     """Transactional confirmation: ownership + fulfillment recheck, exact-once release."""
@@ -204,6 +335,7 @@ def confirm_cancellation(connection, proposals,
     if proposal["owner_session"] != session.id:
         raise ProposalError(404, "PROPOSAL_NOT_AVAILABLE")
     if proposal["status"] == "confirmed":
+        # Resolution by operation ID: no new write, no duplicate operation.
         return operations.as_dict(proposal["operation_id"], idempotent=True)
     if proposals.expired(proposal):
         proposals.consume(proposal_id)

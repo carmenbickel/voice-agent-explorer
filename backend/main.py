@@ -1,3 +1,5 @@
+import secrets
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -16,6 +18,7 @@ from backend.sessions import (
     SessionManager,
     idle_timeout_from_env,
 )
+from backend.traces import TraceStore
 
 
 app = FastAPI(
@@ -24,11 +27,13 @@ app = FastAPI(
 )
 
 manager = SessionManager(idle_timeout_seconds=idle_timeout_from_env())
+traces = TraceStore()
 frontend_directory = Path(__file__).resolve().parent.parent / "frontend"
 app.mount("/static", StaticFiles(directory=frontend_directory), name="static")
 
 SESSION_NOT_ACTIVE = "Session is not active."
 CUSTOMER_NOT_AVAILABLE = "Requested demo customer is not available."
+TRACE_NOT_AVAILABLE = "Trace is not available."
 
 
 def resolve_session(request: Request) -> Session:
@@ -61,18 +66,69 @@ def health():
     return {"status": "ok"}
 
 
+def _begin_trace(session: Session, turn_id: str):
+    """Best-effort trace creation; failures never affect the chat response."""
+    try:
+        trace = traces.begin()
+        trace["turn_id"] = turn_id
+        session.traces.append(trace["trace_id"])
+        traces.record(trace, "session resolved", "executed")
+        traces.record(trace, "retrieval", "skipped",
+                      detail="not available before issue C1")
+        return trace
+    except Exception:
+        return None
+
+
+def _record_stage(trace, stage: str, status: str, **extra) -> None:
+    if trace is None:
+        return
+    try:
+        traces.record(trace, stage, status, **extra)
+        if status in ("executed", "skipped", "failed"):
+            if stage == "response assembly":
+                traces.finish(trace, "error" if status == "failed" else "ok")
+    except Exception:
+        pass
+
+
 @app.post("/chat", response_model=ChatResponse)
 def chat(request: ChatRequest, http: Request):
     session = resolve_session(http)
+    turn_id = secrets.token_urlsafe(12)
+    trace = _begin_trace(session, turn_id)
+    started = time.time()
     try:
         response = run_chat_turn(session, request.message)
-        return ChatResponse(response=response)
+        _record_stage(trace, "model", "executed",
+                      duration_ms=(time.time() - started) * 1000)
+        _record_stage(trace, "response assembly", "executed")
+        return ChatResponse(
+            response=response,
+            turn_id=turn_id,
+            trace_id=trace["trace_id"] if trace else None,
+        )
 
     except OllamaError as exc:
+        _record_stage(trace, "model", "failed")
+        _record_stage(trace, "response assembly", "skipped",
+                      detail="model error")
         raise HTTPException(
             status_code=503,
             detail=str(exc),
         ) from exc
+
+
+@app.get("/traces/{trace_id}")
+def read_trace(trace_id: str, http: Request):
+    """Session-scoped trace access; cross-session reads get a safe 404."""
+    session = resolve_session(http)
+    if trace_id not in session.traces:
+        raise HTTPException(status_code=404, detail=TRACE_NOT_AVAILABLE)
+    view = traces.view(trace_id)
+    if view is None:
+        raise HTTPException(status_code=404, detail=TRACE_NOT_AVAILABLE)
+    return view
 
 
 @app.post("/sessions")

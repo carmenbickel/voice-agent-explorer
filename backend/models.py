@@ -9,6 +9,8 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     response: str
+    turn_id: Optional[str] = None
+    trace_id: Optional[str] = None
 
 
 class DemoCustomerSelection(BaseModel):

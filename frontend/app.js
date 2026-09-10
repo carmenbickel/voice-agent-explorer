@@ -95,6 +95,36 @@ function addMessage(role, text) {
 }
 
 /** Speak a response only when its turn is still the newest turn. */
+/** Render the sanitized per-turn trace panel below the latest message. */
+function showTrace(data) {
+  if (!data.trace_id) return;
+  fetch(`/traces/${encodeURIComponent(data.trace_id)}`)
+    .then((response) => (response.ok ? response.json() : null))
+    .then((trace) => {
+      if (!trace) return;
+      const panel = document.createElement('details');
+      panel.className = 'trace-panel';
+      const summary = document.createElement('summary');
+      summary.textContent = `Trace ${trace.trace_id.slice(0, 6)} — ${trace.outcome}`;
+      const events = document.createElement('ul');
+      for (const event of trace.events) {
+        const line = document.createElement('li');
+        line.className = `trace-${event.status}`;
+        const state = {
+          executed: '✓', skipped: '—', failed: '✗', denied: '✗', pending: '…',
+        }[event.status] || event.status;
+        line.textContent = `${state} ${event.stage}`
+          + (event.duration_ms !== undefined ? ` (${event.duration_ms} ms)` : '')
+          + (event.detail ? ` — ${event.detail}` : '');
+        events.append(line);
+      }
+      panel.append(summary, events);
+      messages.append(panel);
+      messages.scrollTop = messages.scrollHeight;
+    })
+    .catch(() => {});
+}
+
 function speakResponse(text, turnId) {
   if (!logic.shouldSpeak(turnId, latestTurnId)) {
     setVoiceState('idle');
@@ -143,6 +173,7 @@ async function submitMessage(message) {
       throw new Error('Invalid response');
     }
     addMessage('assistant', data.response);
+    showTrace(data, turnId);
     if (speechApi.synthesisSupported) {
       speakResponse(data.response, turnId);
     } else {

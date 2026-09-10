@@ -28,6 +28,7 @@ class Session:
         # History holds user/assistant turns; the system prompt is added per turn.
         self.history = []
         self.pending_proposal = None
+        self.traces = []  # trace IDs owned by this session
         self.clock = clock
         self.last_activity = clock()
         self.lock = Lock()

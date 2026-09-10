@@ -33,6 +33,11 @@ h2 { font-size: 14px; margin: 0; }
 .trace-executed { color: #245d46; }
 .trace-skipped { color: #8a8f8a; }
 .trace-failed, .trace-denied { color: #923526; }
+.proposal { max-width: 88%; align-self: flex-start; background: #edf4ee; border: 1px solid #b9c8bd; border-radius: 9px; padding: 12px 16px; }
+.proposal-title { margin: 0 0 8px; font-size: 12px; font-weight: 700; color: #496356; }
+.proposal ul { margin: 0 0 10px; padding-left: 18px; }
+.proposal-total { font-weight: 700; }
+.proposal-note { margin: 0; font-size: 13px; color: #245d46; }
 #status { color: #52695d; margin: 0; min-height: 24px; }
 #error { color: #923526; background: #fff2ed; padding: 10px 12px; border-radius: 8px; margin: 0 0 12px; }
 form { padding: 12px 24px 24px; }

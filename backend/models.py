@@ -12,6 +12,7 @@ class ChatResponse(BaseModel):
     turn_id: Optional[str] = None
     trace_id: Optional[str] = None
     sources: Optional[List[str]] = None
+    action_proposal: Optional[dict] = None
 
 
 class DemoCustomerSelection(BaseModel):

@@ -7,6 +7,7 @@ from fastapi import Body, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from backend import actions as actions_module
 from backend.agent import run_chat_turn
 from backend.models import ChatRequest, ChatResponse, DemoCustomerSelection, SwitchCustomerRequest
 from backend.ollama_client import OllamaError
@@ -27,6 +28,7 @@ from backend.sessions import (
     SessionManager,
     idle_timeout_from_env,
 )
+from backend.tools import parse_action_line, ACTION_INSTRUMENT, ToolError, validate_args  # noqa: F401
 from backend.traces import TraceStore
 
 
@@ -37,6 +39,8 @@ app = FastAPI(
 
 manager = SessionManager(idle_timeout_seconds=idle_timeout_from_env())
 traces = TraceStore()
+proposals = actions_module.ProposalStore(clock=time.time)
+operations = actions_module.OperationStore()
 knowledge_corpus = load_articles()
 knowledge_index = build_index(corpus=knowledge_corpus)
 frontend_directory = Path(__file__).resolve().parent.parent / "frontend"
@@ -45,6 +49,26 @@ app.mount("/static", StaticFiles(directory=frontend_directory), name="static")
 SESSION_NOT_ACTIVE = "Session is not active."
 CUSTOMER_NOT_AVAILABLE = "Requested demo customer is not available."
 TRACE_NOT_AVAILABLE = "Trace is not available."
+PROPOSAL_NOT_AVAILABLE = "Proposal is not available."
+OPERATION_NOT_AVAILABLE = "Operation is not available."
+BUY_FAILURE_DETAIL = {
+    "DEMO_CUSTOMER_REQUIRED":
+        "Please select a demo customer first, then ask again to buy.",
+    "OUT_OF_STOCK":
+        "That item no longer has enough stock. Ask for another size or product.",
+    "PROPOSAL_CHANGED":
+        "The price or availability changed. Ask again for an updated proposal.",
+    "PROPOSAL_NOT_AVAILABLE":
+        "I could not prepare that purchase.",
+}
+
+
+def shop_connection():
+    import sqlite3
+    from backend import shop
+    connection = shop.connect(shop.database_path())
+    connection.row_factory = sqlite3.Row
+    return connection
 
 
 def resolve_session(request: Request) -> Session:
@@ -123,12 +147,37 @@ def chat(request: ChatRequest, http: Request):
             sources = sorted(chunk["chunk_id"] for chunk in retrieved)
             evidence_text = assemble_messages(
                 build_evidence_context(retrieved))[-1]["content"]
+            evidence_text = evidence_text + "\n" + ACTION_INSTRUMENT
             _record_stage(trace, "retrieval", "executed",
                           detail=", ".join(sources))
         response = run_chat_turn(session, request.message, evidence_text)
         sources = list(sources)
         if retrieved:
             response = remove_invalid_citations(response, retrieved)
+        # Typed orchestration: the model may propose an action; proposal
+        # creation is server-side, min one effective action per turn.
+        action = parse_action_line(response)
+        action_proposal = None
+        if action and action["tool"] is None:
+            # Tool loop exceeded or malformed action: keep the response but
+            # do not act on it. Trace records the rejection.
+            _record_stage(trace, "proposal", "skipped",
+                          detail=action["error_code"])
+            response = response.split(ACTION_PREFIX)[0].strip()
+        elif action and action["tool"] == "propose_purchase":
+            try:
+                action_proposal = actions_module.create_purchase_proposal(
+                    shop_connection(), proposals, session, action["args"])
+                _record_stage(trace, "proposal", "executed",
+                              detail=action_proposal["proposal_id"])
+                response = response.split("ACTION ")[0].strip()
+            except actions_module.ProposalError as failure:
+                _record_stage(trace, "proposal", "failed",
+                              detail=failure.code)
+                response = response.split("ACTION ")[0].strip()
+                response = (
+                    response + "\n" + BUY_FAILURE_DETAIL.get(failure.code, "")
+                ).strip()
         _record_stage(trace, "model", "executed",
                       duration_ms=(time.time() - started) * 1000)
         _record_stage(trace, "response assembly", "executed")
@@ -137,6 +186,7 @@ def chat(request: ChatRequest, http: Request):
             turn_id=turn_id,
             trace_id=trace["trace_id"] if trace else None,
             sources=sources,
+            action_proposal=action_proposal,
         )
 
     except OllamaError as exc:
@@ -158,6 +208,39 @@ def read_trace(trace_id: str, http: Request):
     view = traces.view(trace_id)
     if view is None:
         raise HTTPException(status_code=404, detail=TRACE_NOT_AVAILABLE)
+    return view
+
+
+@app.post("/actions/{proposal_id}/confirm")
+def confirm_action(proposal_id: str, http: Request):
+    """The ONLY write path: rechecks quote, ownership, quantity, stock."""
+    session = resolve_session(http)
+    connection = shop_connection()
+    try:
+        result = actions_module.confirm_purchase(
+            connection, proposals, proposal_id, session, operations)
+    except actions_module.ProposalError as failure:
+        connection.close()
+        if failure.status_code == 404 or failure.code == "PROPOSAL_NOT_AVAILABLE":
+            detail = PROPOSAL_NOT_AVAILABLE
+        elif failure.code == "PROPOSAL_EXPIRED":
+            detail = "Proposal expired. Ask again to get a new proposal."
+        else:
+            detail = f"Proposal no longer valid ({failure.code})."
+        raise HTTPException(status_code=failure.status_code, detail=detail)
+    connection.close()
+    return result
+
+
+@app.get("/operations/{operation_id}")
+def read_operation(operation_id: str, http: Request):
+    """Resolve timeout/unknown outcomes via operation ID (no new write)."""
+    session = resolve_session(http)
+    operation = operations.get(operation_id)
+    if operation is None or operation.get("owner_customer") != session.customer_id:
+        raise HTTPException(status_code=404, detail=OPERATION_NOT_AVAILABLE)
+    view = dict(operation)
+    view["idempotent"] = False
     return view
 
 

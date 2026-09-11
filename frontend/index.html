@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Voice Agent Explorer</title>
+  <title>FUN SHOES</title>
   <link rel="stylesheet" href="/static/styles.css">
   <script src="/static/voice-logic.js" defer></script>
   <script src="/static/app.js" defer></script>
@@ -11,12 +11,17 @@
 <body>
   <main class="workspace">
     <header>
-      <p class="eyebrow">LEARN THROUGH CONVERSATION</p>
-      <h1>Voice Agent Explorer<span aria-hidden="true">.</span></h1>
-      <p class="intro">Explore how AI voice bots listen, understand, and respond.</p>
+      <p class="eyebrow">FIND YOUR NEXT PAIR</p>
+      <h1>FUN SHOES<span aria-hidden="true">.</span></h1>
+      <p class="intro">Shoes for city days, mountain trails, and everything in between.</p>
     </header>
-    <section class="chat" aria-label="Chat with the assistant">
-      <div class="chat-heading"><h2>Your conversation</h2><span>Text chat</span></div>
+    <section class="storefront" aria-labelledby="catalog-title">
+      <h2 id="catalog-title">Shop FUN SHOES</h2>
+      <p>Choose a pair to ask about sizes and availability. Prices in EUR.</p>
+      <div id="catalog" class="catalog-grid" aria-live="polite">Loading shoes…</div>
+    </section>
+    <section class="chat" aria-label="Chat with FUN SHOES">
+      <div class="chat-heading"><h2>FUN SHOES assistant</h2><span>Text chat</span></div>
       <div class="session-controls">
         <label for="demo-customer">Demo customer</label>
         <select id="demo-customer" name="demo-customer" aria-label="Demo customer">
@@ -24,10 +29,14 @@
         </select>
         <button id="reset" type="button">Reset</button>
       </div>
+      <details class="demo-help"><summary>Demo orders for the selected customer</summary>
+        <div id="demo-orders">Select a demo customer to see test orders.</div>
+        <p>Try order_missing_999 for an unknown ID. Purchases and order actions are simulated.</p>
+      </details>
       <div id="messages" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions">
         <article class="message assistant">
-          <p class="sender">Assistant</p>
-          <p class="content">What would you like to explore? Ask about speech recognition, voice activity detection, or how a voice bot works.</p>
+          <p class="sender">FUN SHOES assistant</p>
+          <p class="content">Welcome to FUN SHOES! Explore our shoes or ask me about your order, a return, an exchange, or a cancellation.</p>
         </article>
       </div>
       <div class="feedback">
@@ -37,7 +46,7 @@
       <form id="chat-form">
         <label for="message">Your question</label>
         <div class="composer">
-          <input id="message" name="message" type="text" placeholder="What is voice activity detection?" autocomplete="off" required>
+          <input id="message" name="message" type="text" placeholder="Help me find hiking shoes" autocomplete="off" required>
           <button id="listen" type="button" title="Use your microphone to ask a question">Listen</button>
           <button id="stop" type="button" title="Stop speaking or listening" hidden>Stop</button>
           <button id="send" type="submit">Send <span aria-hidden="true">↑</span></button>

@@ -1,3 +1,4 @@
+from pathlib import Path
 import tempfile
 import unittest
 import unittest.mock as mock
@@ -19,7 +20,7 @@ class SameOriginPolicyTests(unittest.TestCase):
         shop.seed(connection)
 
         def fresh_connection():
-            return shop.shop_connect(self.shop_path)
+            return shop.connect(self.shop_path)
 
         patches = [
             mock.patch.object(main, "manager", SessionManager()),
@@ -96,7 +97,7 @@ class InputBoundTests(unittest.TestCase):
         page = self.client.get("/")
         self.assertEqual(page.status_code, 200)
         # The frontend must not use innerHTML for transcripts.
-        frontend = open("frontend/app.js", encoding="utf-8").read()
+        frontend = Path("frontend/app.js").read_text(encoding="utf-8")
         self.assertNotIn("innerHTML", frontend)
         self.assertIn("textContent", frontend)
 

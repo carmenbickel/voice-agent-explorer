@@ -3,7 +3,7 @@
 import os
 import secrets
 import time
-from threading import Lock
+from threading import Lock, RLock
 
 
 SESSION_COOKIE = "session_id"
@@ -28,10 +28,11 @@ class Session:
         # History holds user/assistant turns; the system prompt is added per turn.
         self.history = []
         self.pending_proposal = None
+        self.order_context = None
         self.traces = []  # trace IDs owned by this session
         self.clock = clock
         self.last_activity = clock()
-        self.lock = Lock()
+        self.lock = RLock()
 
     def touch(self) -> None:
         self.last_activity = self.clock()
@@ -40,6 +41,7 @@ class Session:
         """Clear history and pending action state; keep the customer binding."""
         self.history = []
         self.pending_proposal = None
+        self.order_context = None
 
 
 class SessionManager:

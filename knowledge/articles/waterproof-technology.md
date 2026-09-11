@@ -1,12 +1,15 @@
 ---
 id: article-waterproof-technology
-version: 1
+version: 2
 language: en
 scope: public-shop
 effective_from: 2026-06-01
 effective_until: null
 title: Waterproof membrane technology
 ---
+
+This article applies to the FUN SHOES demo store only.
+
 
 # Waterproofing
 

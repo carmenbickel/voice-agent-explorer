@@ -35,7 +35,7 @@ BASELINE_SET = [
         "topic": "policy:shipping",
     },
     {
-        "question": "Which EU sizes do Stepwise Shoes use?",
+        "question": "Which EU sizes do FUN SHOES use?",
         "expect_articles": ["article-sizing-guide"],
         "topic": "sizing",
     },

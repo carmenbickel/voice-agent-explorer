@@ -16,7 +16,7 @@ application, not a requirement to build separate microservices or install every
 vendor in the reference image.
 
 **Design status:** the online-shop domain and buying, returning, exchanging,
-and cancelling journeys are agreed directions. **Stepwise Shoes**, a fictional
+and cancelling journeys are agreed directions. **FUN SHOES**, a fictional
 footwear shop, is the working proposal and still needs user confirmation.
 All shop data and policies below are proposed demo fixtures, not real merchant
 terms or legal guidance. Sections describing the target are plans, not features
@@ -728,7 +728,7 @@ and attempted access to another demo customer's order.
 
 ### Open decisions before feature implementation
 
-1. Confirm Stepwise Shoes and the initial language, currency, and shipping region.
+1. Confirm FUN SHOES and the initial language, currency, and shipping region.
 2. Approve catalog fixtures and exact demo return/exchange/shipping terms.
 3. Evaluate `llama3.2:3b` for tool proposal accuracy and `nomic-embed-text` for
    the selected language/corpus; adjust only with evidence.
@@ -744,3 +744,23 @@ commands against the repository. Preview Mermaid on GitHub when the branch is
 published, since GitHub's renderer version may differ from local Mermaid.
 This issue changes documentation only; implementation dependencies above must
 not be installed into the project until their feature issues require them.
+
+
+## FUN SHOES storefront and order support (#39)
+
+The browser storefront reads current variants from `GET /catalog`; selected
+customer demo orders come from session-scoped `GET /demo/orders`. Text and
+recognized speech share `POST /chat`. `backend/order_support.py` collects an
+explicit customer-supplied order ID and missing item/condition/reason/size
+fields in server-owned session state. SQLite ownership lookup precedes
+proposal creation. Unknown and inaccessible IDs share a non-disclosing error.
+
+Catalog selection answers use database facts. FUN SHOES wiki articles and
+source-title retrieval terms ground policy answers; unsupported store questions
+abstain instead of asking the model to invent a commercial promise. Model-
+generated order actions cannot bypass the explicit-ID support flow.
+
+Existing action services retain eligibility checks and transactional commits.
+Confirmation and context changes serialize through the session lock. Reset,
+customer changes, and order changes invalidate the pending support proposal.
+This remains a local simulated shop, without real payments or fulfillment.

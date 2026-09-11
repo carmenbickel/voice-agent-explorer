@@ -21,8 +21,8 @@ from backend import ollama_client
 
 
 ARTICLES_DIRECTORY = Path(__file__).resolve().parent.parent / "knowledge" / "articles"
-CHUNKING_VERSION = "heading-split-v1"
-RAG_GENERATOR_VERSION = "rag-baseline-v1"
+CHUNKING_VERSION = "heading-split-v2"
+RAG_GENERATOR_VERSION = "fun-shoes-v2"
 MAX_RETRIEVED_CHUNKS = 4
 SECTION_HEADING = re.compile(r"^##\s+")
 CITATION_TAG = re.compile(r"\[src:([A-Za-z0-9_.:-]+)\]")
@@ -58,7 +58,7 @@ _TOKEN = re.compile(r"[a-z0-9]+")
 STOPWORDS = frozenset(
     "a an and are as at be but by can for from has have how i in is it its "
     "my of on or should that the this to was what when which with you your "
-    "do does were will shall must may".split())
+    "do does were will shall must may fun shoes store article applies only".split())
 
 
 def _hash_embedding(text, dimension=HASH_EMBED_DIMENSION):
@@ -150,6 +150,7 @@ def chunk_article(metadata, body, source_path):
             "effective_from": metadata["effective_from"],
             "effective_until": metadata["effective_until"],
             "heading": heading,
+            "title": metadata["title"],
             "text": text,
             "source_path": source_path,
             "hash": text_hash,
@@ -227,7 +228,7 @@ def build_index(corpus=None, embed_fn=embed, directory=ARTICLES_DIRECTORY) -> Ar
         index.chunk_embeddings[chunk["chunk_id"]] = embed_fn(
             f"{chunk['heading']}\n{chunk['text']}")
         index.chunk_terms[chunk["chunk_id"]] = \
-            frozenset(_TOKEN.findall((chunk["heading"] + " " + chunk["text"]).lower())) - STOPWORDS
+            frozenset(_TOKEN.findall((chunk.get("title", "") + " " + chunk["heading"] + " " + chunk["text"]).lower())) - STOPWORDS
     return index
 
 
@@ -252,7 +253,7 @@ def build_index(corpus=None, embed_fn=embed, directory=ARTICLES_DIRECTORY) -> Ar
         index.chunk_embeddings[chunk["chunk_id"]] = embed_fn(
             f"{chunk['heading']}\n{chunk['text']}")
         index.chunk_terms[chunk["chunk_id"]] = \
-            frozenset(_TOKEN.findall((chunk["heading"] + " " + chunk["text"]).lower())) - STOPWORDS
+            frozenset(_TOKEN.findall((chunk.get("title", "") + " " + chunk["heading"] + " " + chunk["text"]).lower())) - STOPWORDS
     return index
 
 

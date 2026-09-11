@@ -398,3 +398,168 @@ Cross-cutting tests, validation, timeouts, redaction, and trace events belong in
 each feature issue; they must not be deferred entirely to E2. The open product,
 policy, model, corpus, browser, retention, and latency decisions in
 `ARCHITECTURE.md` should be resolved before their dependent issues begin.
+
+## Follow-up: FUN SHOES Storefront and Order Identification
+
+### Issue F1: Make FUN SHOES a shop experience with grounded support and verified order IDs
+
+**Status:** Implementation tracked in [GitHub issue #39](https://github.com/carmenbickel/voice-agent-explorer/issues/39).
+
+### Goal
+
+Present the application as **FUN SHOES**, a fictional footwear shop with an
+integrated text/voice shopping assistant, rather than a standalone chat about
+AI voice bots. All shop advice must refer to FUN SHOES knowledge and business
+records. Returns, exchanges, and cancellations must identify a real,
+customer-owned order before an action can be proposed.
+
+### Current implementation reviewed
+
+The Repository Baseline and Current State sections above describe the earlier
+planning snapshot, not the current code. As of this review:
+
+- `backend/shop.py` provides a SQLite catalog with six products, variants,
+  inventory, two demo customers, and eight seeded orders.
+- `backend/sessions.py` and `backend/main.py` provide isolated sessions and
+  server-owned demo identity; `frontend/` supports text and browser voice.
+- `knowledge/articles/`, `backend/rag.py`, and `backend/graph_rag.py` provide
+  articles, document retrieval, and optional graph-assisted retrieval.
+- `backend/actions.py` already implements owned-order eligibility checks,
+  proposals, explicit confirmation, and transactional commerce workflows.
+- `backend/agent.py` still instructs the model to explain AI voice bots.
+  `frontend/index.html` still uses Voice Agent Explorer branding and VAD
+  examples. Shop fixtures and some knowledge/docs use Stepwise Shoes.
+- `/chat` relies on model-generated ACTION arguments. There is no explicit
+  collect-and-validate order-ID conversation flow. Existing journey tests
+  inject complete action payloads, so they do not establish that a customer
+  can start with “I want to return my shoes” and supply an ID on the next turn.
+- Missing and inaccessible orders already receive a non-disclosing rejection
+  in action services; the conversational flow needs a clear, recoverable
+  customer-facing message before proposal creation.
+
+### What to implement
+
+1. **FUN SHOES storefront and assistant identity**
+   - Update browser title, heading, welcome/reset messages, assistant label,
+     input examples, and accessible labels to FUN SHOES shopping/support.
+   - Add a simple shop landing/catalog area alongside the assistant. Show the
+     existing six products with names, supported variants, prices, and current
+     availability from the SQLite catalog through an appropriate read endpoint.
+     Customers should be able to select a product to start a shopping question.
+   - Keep text, voice, demo-customer selection, confirmations, and traces usable.
+     Make the storefront the main customer experience and the assistant its
+     shopping/support helper. Keep implementation in the existing plain frontend.
+   - Replace the explainer system prompt with a FUN SHOES assistant role for
+     product discovery, store policies, purchases, and order support.
+   - Keep the local demo disclosure: this does not create real payment,
+     fulfillment, refund, or external merchant integrations.
+
+2. **FUN SHOES-specific knowledge and grounding**
+   - Audit all articles, graph labels/provenance, fixtures, retrieval examples,
+     evaluation questions, README, and architecture copy for obsolete branding.
+     Use FUN SHOES consistently for the shop and its own-brand products.
+   - Clearly scope shipping, sizing, care, returns, exchanges, cancellations,
+     and support information to FUN SHOES. Preserve existing demo policy terms
+     unless a change is necessary for consistency; do not invent new terms.
+   - Retrieve only the intended shop's evidence. Never substitute Amazon or
+     another retailer's policies or claim access to its orders. For such a
+     request, explain that this assistant supports FUN SHOES orders only.
+   - Use trusted catalog/order services for stock, price, ownership, and
+     eligibility. Unknown store facts produce an explicit limitation or
+     clarification, not general-retailer advice presented as FUN SHOES policy.
+   - Rebuild/version affected retrieval artifacts and graph references and
+     rerun the existing evaluation after corpus changes.
+
+3. **Collect and validate the order ID in text and voice conversations**
+   - For a request to return, exchange, or cancel without an explicitly supplied
+     order ID, ask “What is your FUN SHOES order ID?” before creating a proposal.
+     General policy questions do not require an ID.
+   - Retain the pending intent in the owning session so an ID-only next turn
+     continues the requested workflow. If the initial request contains an ID,
+     validate it directly without asking the customer to repeat it.
+   - Resolve IDs through SQLite using the server-owned customer identity. Do
+     not infer an order from the customer's only/latest order or accept an ID
+     invented by the model. Require demo-customer selection if unbound.
+   - Handle surrounding whitespace and documented case normalization; for an
+     ambiguous voice transcription, ask the customer to repeat or type the ID
+     rather than guessing a near match.
+   - For an unknown ID, say “I couldn't find a FUN SHOES order with that ID for
+     your account. Please check the order ID and try again.” Use the same
+     non-disclosing message for another customer's ID. Do not disclose its
+     existence, owner, items, or status.
+   - On a failed lookup, create no action proposal or business-record changes;
+     preserve the pending intent so a corrected ID can continue immediately.
+   - After a valid lookup, identify eligible lines from the order. Ask the
+     customer to select an item when ambiguous, then collect missing reason,
+     condition, or replacement size/variant as required by existing services.
+     Customers must not need to know internal variant IDs or write ACTION JSON.
+   - Keep deterministic eligibility checks and explicit confirmation as the
+     only commit path. Present missing, ineligible, and confirmed results
+     accurately in both displayed text and speech; never announce success for
+     an unknown order or failed action.
+   - Clear pending order context on session reset/customer switch/expiry and
+     after completion; changing the target order must invalidate an obsolete
+     proposal so it cannot accidentally act on the previous order.
+
+4. **Three documented test orders**
+   - Reuse these existing deterministic fixtures as FUN SHOES test orders;
+     do not add duplicate records solely to demonstrate lookup. Document the
+     owning customer, ID, items, state, and intended scenario in README and a
+     clearly labelled demo-help area in the UI for the selected customer.
+
+   | Customer | Order ID | State | Test scenario |
+   | --- | --- | --- | --- |
+   | `demo_maya` | `order_maya_1` | processing | Valid cancellation after confirmation |
+   | `demo_maya` | `order_maya_3` | delivered | Valid return or same-product exchange after collecting required details |
+   | `demo_maya` | `order_maya_2` | shipped | Order found, but cancellation denied by policy |
+
+   - Use `order_missing_999` as an explicitly nonexistent test ID; never seed it.
+   - Document fixture clock/window assumptions and the existing reset command.
+     Return and exchange examples using the same line must run from separate
+     fresh fixtures because active requests conflict. Do not weaken that rule.
+   - Preserve other customer fixtures for isolation tests. Ordinary support
+     conversations must never expose another customer's demo order list.
+
+### Done / acceptance criteria
+
+- [ ] The browser visibly presents FUN SHOES as a footwear shop with a catalog
+  and integrated assistant; welcome/reset copy and voice greetings use that name.
+- [ ] Catalog product/price/availability displays reflect SQLite data; product
+  selection can start a relevant shopping conversation without breaking chat.
+- [ ] The system prompt, active knowledge, graph, and customer-facing text use
+  FUN SHOES consistently; no obsolete Stepwise branding or AI-bot tutorial
+  greeting remains in the active customer experience.
+- [ ] FUN SHOES policy questions use the shop's retrieved sources. Amazon-order
+  requests are redirected appropriately; missing evidence never becomes an
+  invented FUN SHOES policy or order result.
+- [ ] Each of return, exchange, and cancel asks for an ID when omitted, then
+  resumes correctly when the next message contains only the ID.
+- [ ] An ID supplied in the initial request is validated directly; malformed
+  or ambiguous spoken IDs prompt clarification without guessing.
+- [ ] `order_missing_999` produces the clear not-found/retry message and no
+  proposal or business mutation. A corrected valid ID resumes the same intent.
+- [ ] Another customer's ID yields the same non-disclosing failure. Session
+  reset, expiry, and customer switching cannot reuse stale order/action context.
+- [ ] The three documented fixture IDs resolve for `demo_maya`; processing
+  cancellation succeeds only after confirmation, delivered return/exchange
+  follows existing rules, and shipped cancellation is denied without mutation.
+- [ ] The user can select order items and replacement sizes conversationally;
+  internal variant IDs and ACTION JSON are not required from the customer.
+- [ ] Existing confirmation, ownership, eligibility, conflict, inventory, and
+  idempotency behavior remains intact. Failed actions never produce success copy.
+- [ ] Automated tests cover multi-turn missing/valid/unknown/corrected IDs for
+  all three intents, initial-message IDs, cross-customer access, storefront
+  data, knowledge scope, and context clearing. Run the full Python suite,
+  voice JavaScript checks, retrieval evaluation, and `git diff --check`.
+- [ ] Manual browser checks cover catalog layout, typed conversations, spoken
+  ID clarification and response playback, invalid-ID recovery, and confirmation.
+  Include a real-model conversation check: mocked complete ACTION payloads
+  alone do not prove that the assistant can collect the required information.
+
+### Scope and dependencies
+
+Build on the existing session, catalog, retrieval, voice, and action services
+(A1–E3). The user has selected **FUN SHOES** as the shop name. Keep existing
+currency, region, products, and policy rules unless consistency requires a
+specified adjustment. No new framework, general marketplace support, real
+merchant integration, or production identity/payment system is required.

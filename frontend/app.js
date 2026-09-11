@@ -84,7 +84,7 @@ function addMessage(role, text) {
   message.className = `message ${role}`;
   const sender = document.createElement('p');
   sender.className = 'sender';
-  sender.textContent = role === 'user' ? 'You' : 'Assistant';
+  sender.textContent = role === 'user' ? 'You' : 'FUN SHOES assistant';
   const content = document.createElement('p');
   content.className = 'content';
   content.textContent = text;
@@ -150,35 +150,37 @@ function showProposal(proposal) {
   panel.className = 'proposal';
   const title = document.createElement('p');
   title.className = 'proposal-title';
-  title.textContent = `Purchase proposal ${proposal.proposal_id.slice(0, 8)}… (valid for ten minutes)`;
+  title.textContent = `FUN SHOES ${proposal.kind} proposal (review before confirming)`;
   panel.append(title);
   const list = document.createElement('ul');
-  for (const item of proposal.items) {
+  for (const item of proposal.items || []) {
     const line = document.createElement('li');
     line.textContent = `${item.quantity} × ${item.name} size ${item.size} ${item.colour} — €${(item.unit_price_cents / 100).toFixed(2)}`;
     list.append(line);
   }
-  const total = document.createElement('li');
-  total.className = 'proposal-total';
-  total.textContent = `Total: €${(proposal.total_cents / 100).toFixed(2)}`;
-  list.append(total);
-  panel.append(list);
+  const terms = document.createElement('p');
+  terms.textContent = proposal.terms || proposal.summary || proposal.detail ||
+    (proposal.order_id ? `Order: ${proposal.order_id}` : 'Review this request before confirming.');
+  if (proposal.total_cents !== undefined) {
+    terms.textContent += ` Total: €${(proposal.total_cents / 100).toFixed(2)}`;
+  }
+  panel.append(list, terms);
   const confirmButton = document.createElement('button');
   confirmButton.type = 'button';
-  confirmButton.textContent = 'Confirm purchase';
+  confirmButton.textContent = `Confirm ${proposal.kind}`;
   confirmButton.addEventListener('click', async () => {
     confirmButton.disabled = true;
-    const response = await fetch(
-      `/actions/${encodeURIComponent(proposal.proposal_id)}/confirm`,
-      { method: 'POST' });
-    if (response.ok) {
+    try {
+      const response = await fetch(
+        `/actions/${encodeURIComponent(proposal.proposal_id)}/confirm`, { method: 'POST' });
       const result = await response.json();
-      replaceWithResult(panel,
-        `Purchase confirmed. Reference: ${result.order_id} (processing).`);
-    } else {
-      const detail = (await response.json().catch(() => ({}))).detail;
-      replaceWithResult(panel, detail ||
-        'Proposal is no longer valid. Ask again for a new proposal.');
+      if (!response.ok) throw new Error(result.detail || 'Proposal is no longer valid. Ask for a new proposal.');
+      replaceWithResult(panel, result.detail ||
+        `FUN SHOES ${proposal.kind} confirmed. Reference: ${result.return_reference || result.exchange_reference || result.ticket_reference || result.reference || result.order_id || result.operation_id}.`);
+      loadCatalog();
+      loadDemoOrders();
+    } catch (failure) {
+      replaceWithResult(panel, `${failure.message} If the outcome is uncertain, check the order before trying again.`);
     }
   });
   panel.append(confirmButton);
@@ -324,6 +326,7 @@ async function createSession(customerId) {
   const data = await response.json();
   sessionReady = true;
   updateCustomerLabel(data.customer);
+  loadDemoOrders();
   return data.customer;
 }
 
@@ -361,7 +364,8 @@ customerSelect.addEventListener('change', async () => {
   });
   if (response.ok) {
     clearTranscript();
-    addMessage('assistant', 'Demo customer switched. The assistant has no memory of previous conversations.');
+    loadDemoOrders();
+    addMessage('assistant', 'Welcome to FUN SHOES! Customer switched; please give your order ID for order support.');
   } else {
     error.textContent = 'Could not switch the demo customer.';
     error.hidden = false;
@@ -374,7 +378,8 @@ resetButton.addEventListener('click', async () => {
   const response = await fetch('/sessions/reset', { method: 'POST' });
   if (response.ok) {
     clearTranscript();
-    addMessage('assistant', 'Conversation cleared. The assistant has no memory of previous messages.');
+    loadDemoOrders();
+    addMessage('assistant', 'Welcome back to FUN SHOES! How can I help with shoes or your order?');
   } else {
     error.textContent = 'Could not reset the conversation.';
     error.hidden = false;
@@ -401,3 +406,65 @@ form.addEventListener('submit', (event) => {
 
 createSession().catch(() => {});
 loadCustomers();
+
+async function loadCatalog() {
+  const target = document.querySelector('#catalog');
+  try {
+    const response = await fetch('/catalog');
+    if (!response.ok) throw new Error();
+    const data = await response.json();
+    target.replaceChildren();
+    const products = new Map();
+    for (const variant of data.variants) {
+      if (!products.has(variant.product_id)) products.set(variant.product_id, []);
+      products.get(variant.product_id).push(variant);
+    }
+    for (const variants of products.values()) {
+      const card = document.createElement('article');
+      card.className = 'product-card';
+      const title = document.createElement('h3');
+      title.textContent = variants[0].name;
+      const category = document.createElement('p');
+      category.textContent = variants[0].category;
+      const list = document.createElement('ul');
+      for (const v of variants) {
+        const item = document.createElement('li');
+        item.textContent = `EU ${v.size} · ${v.colour} · €${(v.price_cents / 100).toFixed(2)} · ${v.available > 0 ? v.available + ' available' : 'Out of stock'}`;
+        list.append(item);
+      }
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = `Ask about ${variants[0].name}`;
+      button.onclick = () => {
+        input.value = `Tell me about ${variants[0].name} at FUN SHOES`;
+        input.focus();
+        form.scrollIntoView({block: 'center'});
+      };
+      card.append(title, category, list, button);
+      target.append(card);
+    }
+    if (!products.size) target.textContent = 'No products loaded. Initialize the demo fixtures as described in README.';
+  } catch {
+    target.textContent = 'Could not load shoes. Refresh the page to try again.';
+  }
+}
+
+async function loadDemoOrders() {
+  const target = document.querySelector('#demo-orders');
+  target.textContent = 'Loading your demo orders…';
+  try {
+    const response = await fetch('/demo/orders');
+    if (!response.ok) throw new Error();
+    const data = await response.json();
+    target.replaceChildren();
+    for (const order of data.orders) {
+      const line = document.createElement('p');
+      line.textContent = `${order.id} — ${order.state}: ` + order.lines.map(item => `${item.quantity} × ${item.item_name}, EU ${item.size}, ${item.colour}`).join('; ');
+      target.append(line);
+    }
+    if (!data.orders.length) target.textContent = 'Select a demo customer to see test orders.';
+  } catch {
+    target.textContent = 'Could not load demo orders. Select your customer again to retry.';
+  }
+}
+loadCatalog();

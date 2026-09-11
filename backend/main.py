@@ -1,4 +1,5 @@
 import os
+import re
 import secrets
 import time
 from pathlib import Path
@@ -9,7 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend import actions as actions_module
-from backend import graph_rag
+from backend import graph_rag, order_support
 from backend.agent import run_chat_turn
 from backend.models import ChatRequest, ChatResponse, DemoCustomerSelection, SwitchCustomerRequest
 from backend.ollama_client import OllamaError
@@ -35,7 +36,7 @@ from backend.traces import TraceStore
 
 
 app = FastAPI(
-    title="Voice Agent Explorer API",
+    title="FUN SHOES API",
     version="0.1.0",
 )
 
@@ -160,6 +161,22 @@ def chat(request: ChatRequest, http: Request):
     turn_id = secrets.token_urlsafe(12)
     trace = _begin_trace(session, turn_id)
     started = time.time()
+    with session.lock:
+        connection = shop_connection()
+        try:
+            support = order_support.handle(session, request.message, connection,
+                                           proposals, operations, lambda: DEMO_NOW_EPOCH)
+        finally:
+            connection.close()
+        if support is not None:
+            response, proposal = support
+            session.history += [{"role": "user", "content": request.message},
+                                {"role": "assistant", "content": response}]
+            _record_stage(trace, "order support", "executed")
+            _record_stage(trace, "proposal", "executed" if proposal else "skipped")
+            _record_stage(trace, "response assembly", "executed")
+            return ChatResponse(response=response, action_proposal=proposal,
+                                turn_id=turn_id, trace_id=trace["trace_id"] if trace else None)
     sources = []
     try:
         evidence_text = None
@@ -185,7 +202,18 @@ def chat(request: ChatRequest, http: Request):
             evidence_text = evidence_text + "\n" + ACTION_INSTRUMENT
             _record_stage(trace, "retrieval", "executed",
                           detail=", ".join(sources))
-        response = run_chat_turn(session, request.message, evidence_text)
+        # Missing store evidence must not become an invented commercial promise.
+        store_question = re.search(
+            r"\b(fun shoes|policy|policies|warranty|guarantee|discount|shipping|delivery|"
+            r"opening|hours|address|refund|payment|offer|sell)\b", request.message.lower())
+        abstained = not retrieved and bool(store_question)
+        if abstained:
+            response = "I don't have FUN SHOES knowledge covering that question. I cannot confirm that policy or offer. Please ask about our documented products, shipping, returns, exchanges, or cancellations."
+            with session.lock:
+                session.history += [{"role": "user", "content": request.message},
+                                    {"role": "assistant", "content": response}]
+        else:
+            response = run_chat_turn(session, request.message, evidence_text)
         sources = list(sources)
         if retrieved:
             response = remove_invalid_citations(response, retrieved)
@@ -193,6 +221,10 @@ def chat(request: ChatRequest, http: Request):
         # creation is server-side, min one effective action per turn.
         action = parse_action_line(response)
         action_proposal = None
+        if action and action.get("tool") in ("propose_return", "propose_exchange", "propose_cancellation"):
+            # Order support must collect customer-supplied IDs, never model guesses.
+            response = "For order support, please tell me whether you want to return, exchange, or cancel and provide your FUN SHOES order ID."
+            action = None
         if action and action["tool"] is None:
             # Tool loop exceeded or malformed action: keep the response but
             # do not act on it. Trace records the rejection.
@@ -249,7 +281,7 @@ def chat(request: ChatRequest, http: Request):
                 response = (
                     response + "\n" + BUY_FAILURE_DETAIL.get(failure.code, "")
                 ).strip()
-        _record_stage(trace, "model", "executed",
+        _record_stage(trace, "model", "skipped" if abstained else "executed",
                       duration_ms=(time.time() - started) * 1000)
         _record_stage(trace, "response assembly", "executed")
         return ChatResponse(
@@ -292,6 +324,12 @@ def read_trace(trace_id: str, http: Request):
 
 @app.post("/actions/{proposal_id}/confirm")
 def confirm_action(proposal_id: str, http: Request):
+    session = resolve_session(http)
+    with session.lock:
+        return _confirm_action(proposal_id, http)
+
+
+def _confirm_action(proposal_id: str, http: Request):
     """The ONLY write path: rechecks quote, ownership, quantity, stock."""
     assert_same_origin(http)
     session = resolve_session(http)
@@ -345,6 +383,8 @@ def confirm_action(proposal_id: str, http: Request):
             detail = f"Proposal no longer valid ({failure.code})."
         raise HTTPException(status_code=failure.status_code, detail=detail)
     connection.close()
+    session.order_context = None
+    session.pending_proposal = None
     return result
 
 
@@ -390,7 +430,9 @@ def switch_customer(selection: SwitchCustomerRequest, response: Response, http: 
     """Switch this session's demo customer, clearing context and pending state."""
     session = resolve_session(http)
     try:
-        profile = manager.switch_customer(session, selection.customer_id.strip())
+        with session.lock:
+            order_support.invalidate(session, proposals)
+            profile = manager.switch_customer(session, selection.customer_id.strip())
     except DemoCustomerNotFoundError:
         raise HTTPException(status_code=404, detail=CUSTOMER_NOT_AVAILABLE)
     issue_session(response, session)
@@ -402,5 +444,33 @@ def reset_session(http: Request):
     assert_same_origin(http)
     """Clear this session's history and pending proposals only."""
     session = resolve_session(http)
-    manager.reset(session)
+    with session.lock:
+        order_support.invalidate(session, proposals)
+        manager.reset(session)
     return {"status": "ok", "customer": customer_view(session)}
+
+
+@app.get('/catalog')
+def catalog():
+    connection = shop_connection()
+    try:
+        rows = connection.execute(
+            'SELECT p.id AS product_id, p.name, p.category, v.id, v.size, '
+            'v.colour, v.price_cents, i.on_hand - i.reserved AS available '
+            'FROM products p JOIN variants v ON v.product_id = p.id '
+            'JOIN inventory i ON i.variant_id = v.id ORDER BY p.name, v.size').fetchall()
+        return {'store': 'FUN SHOES', 'variants': [dict(row) for row in rows]}
+    finally:
+        connection.close()
+
+
+@app.get('/demo/orders')
+def demo_orders(http: Request):
+    from backend.shop import Catalog
+    session = resolve_session(http)
+    connection = shop_connection()
+    try:
+        return {'orders': Catalog(connection).list_customer_orders(session.customer_id)
+                if session.customer_id else []}
+    finally:
+        connection.close()

@@ -73,6 +73,8 @@
       "question": "When do demo orders arrive?",
       "recall": 1.0,
       "retrieved": [
+        "article-cancellation-policy",
+        "article-exchanges-policy",
         "article-returns-policy",
         "article-shipping-overview"
       ],
@@ -84,11 +86,10 @@
         "article-sizing-guide"
       ],
       "expected_in_context": 1,
-      "question": "Which EU sizes do Stepwise Shoes use?",
+      "question": "Which EU sizes do FUN SHOES use?",
       "recall": 1.0,
       "retrieved": [
-        "article-sizing-guide",
-        "article-fit-and-comfort"
+        "article-sizing-guide"
       ],
       "topic": "sizing"
     },
@@ -114,8 +115,7 @@
       "question": "How should I clean inflatable waterproof hiking shoes?",
       "recall": 1.0,
       "retrieved": [
-        "article-care-dfg-products",
-        "article-fit-and-comfort"
+        "article-care-dfg-products"
       ],
       "topic": "care"
     },
@@ -128,6 +128,7 @@
       "question": "Is the demo membrane breathable?",
       "recall": 1.0,
       "retrieved": [
+        "article-waterproof-technology",
         "article-waterproof-technology"
       ],
       "topic": "technology"
@@ -141,9 +142,7 @@
       "question": "What kind of shoes fit short city runs?",
       "recall": 1.0,
       "retrieved": [
-        "article-running-form",
-        "article-fit-and-comfort",
-        "article-sizing-guide"
+        "article-running-form"
       ],
       "topic": "running"
     },

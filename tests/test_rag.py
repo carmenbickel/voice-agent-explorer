@@ -30,7 +30,7 @@ class RAGIngestionTests(unittest.TestCase):
         self.assertEqual(all(
             len(article_hash) == 12
             for article_hash in manifest["article_hashes"].values()), True)
-        self.assertEqual(manifest["chunking"], "heading-split-v1")
+        self.assertEqual(manifest["chunking"], "heading-split-v2")
         self.assertIn("embedder", manifest)
 
     def test_duplicate_chunk_heading_rejected(self):
@@ -52,7 +52,7 @@ class RAGIngestionTests(unittest.TestCase):
     def test_chunks_carry_stable_metadata(self):
         chunk = self.corpus["chunks"][0]
         self.assertIn("::", chunk["chunk_id"])
-        self.assertEqual(chunk["version"], 1)
+        self.assertEqual(chunk["version"], 2)
         self.assertEqual(chunk["language"], "en")
         self.assertIn(".md", chunk["source_path"])
         self.assertEqual(len(chunk["hash"]), 12)

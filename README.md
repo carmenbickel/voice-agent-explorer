@@ -1,4 +1,4 @@
-# Voice Agent Explorer
+# FUN SHOES
 
 A local learning and portfolio project that demonstrates how an AI
 customer-support voice assistant works: conversation, knowledge retrieval,
@@ -30,7 +30,7 @@ session; typed orchestration where proposals show exact terms and **nothing
 writes** until explicit confirmation (`POST /actions/{proposal_id}/confirm`);
 transactional inventory reservations with idempotent operation resolution
 (`GET /operations/{operation_id}`); supporting journeys scripted end-to-end
-in `tests/test_acceptance.py` (150 tests total).
+in `tests/test_acceptance.py` (165 tests total).
 
 **Remaining limitations:** everything is a local, simulated demo — no real
 payments, carriers, shipping, or human support; identity is simulated, not
@@ -43,10 +43,10 @@ recall gain on the current corpus (mean expansion 0.0 — recorded in the
 committed evaluation report); voice needs a Chromium-based browser with
 microphone permission.
 
-## Planned customer-support demo
+## FUN SHOES customer experience
 
-The next phase uses an online shop to demonstrate four journeys. The demo shop
-is **Stepwise Shoes**, a fictional footwear retailer. Shop fixtures (see below)
+The app uses an online shop to demonstrate four journeys. The demo shop
+is **FUN SHOES**, a fictional footwear retailer. Shop fixtures (see below)
 are draft demo data for the local demonstration; they contain no real shop or
 customer information.
 
@@ -64,7 +64,7 @@ integrations are planned for the first version.
 
 ## Wiki and retrieval (issues C1)
 
-`backend/rag.py` ingests the Stepwise Shoes wiki (12 draft articles in
+`backend/rag.py` ingests the FUN SHOES wiki (12 draft articles in
 `knowledge/articles/` with validated front matter — id, version, language,
 scope, effective dates) into heading-aware chunks with stable IDs and hashes.
 Retrieval is bounded (max 4 chunks per question) and deterministic: the local
@@ -120,7 +120,7 @@ request only.
 
 ## Demo shop fixtures (SQLite)
 
-`backend/shop.py` owns the Stepwise Shoes demo data. Business records live in a
+`backend/shop.py` owns the FUN SHOES demo data. Business records live in a
 local SQLite database (default `shop.db` in the repository root, path
 override via the `SHOP_DB` environment variable; the file is gitignored):
 
@@ -155,8 +155,7 @@ Demo customers reuse the session demo identity IDs `demo_maya` and `demo_leo`,
 each owning four seeded orders (one per fulfillment state). Catalog reads
 (`Catalog.list_products`, `Catalog.get_variant`, `Catalog.list_customer_orders`)
 return stable IDs, current price, size, colour, and stock from SQLite — never
-prompt text. Reservation of stock (on the purchase path) and shop-specific
-chat behavior are future issues.
+prompt text. Stock reservations and FUN SHOES-specific order support are implemented.
 
 ### Why RAG and a knowledge graph?
 
@@ -176,7 +175,7 @@ set will compare document-only RAG with graph-assisted RAG.
 The full local demo is validated as a repeatable suite:
 
 ```bash
-python -m unittest discover -s tests            # 150 automated tests
+python -m unittest discover -s tests            # 165 automated tests
 python -m backend.rag_eval                      # regenerates knowledge/eval/baseline-report.{json,md}
 ```
 
@@ -285,7 +284,7 @@ the server. Requests without an active session receive HTTP 403.
   its conversation context and pending state.
 - `POST /sessions/reset` clears this session's history and pending state only;
   it keeps the customer binding.
-- `POST /chat` accepts `{"message": "What is VAD?"}` and returns
+- `POST /chat` accepts `{"message": "What is the FUN SHOES returns policy?"}` and returns
   `{"response": "...", "turn_id": "...", "trace_id": "..."}` using this
   session's own history.
 - `GET /traces/{trace_id}` returns the sanitized per-turn event trace (stages,
@@ -323,9 +322,61 @@ model service is unavailable.
 ```text
 backend/           FastAPI, conversation agent, Ollama client, sessions, shop fixtures
 frontend/          Browser HTML, JavaScript, voice logic, and CSS
-knowledge/         Reserved for knowledge content; retrieval is not built yet
+knowledge/         FUN SHOES articles, graph, and retrieval evaluation
 tests/             Current automated API/agent/shop/voice checks
 ARCHITECTURE.md    Target design, Mermaid diagrams, and implementation milestones
 docs/diagrams/     Editable SVG architecture illustrations
 requirements.txt  Current Python dependencies
 ```
+
+## FUN SHOES order-support walkthrough (issue #39)
+
+The home page displays the six FUN SHOES products and current variant prices
+and availability from `GET /catalog`. Select a product to ask about it. The
+assistant supports FUN SHOES only; other retailers' policies and orders are
+outside its scope. Article versions and graph provenance were updated to v2.
+
+Before the first demo, initialize fixtures with `python -m backend.shop seed`.
+This command resets all local business records; do not use it to upgrade an
+existing demo you want to preserve. Existing Stepwise own-brand catalog rows
+are renamed to FUN SHOES on connection without resetting orders or inventory.
+
+Select **Maya** in the demo-customer control. Expand the demo-order help to see
+only the selected customer's orders. Three useful test IDs are:
+
+| Order ID | Items | State | Try |
+| --- | --- | --- | --- |
+| `order_maya_1` | 1 × Summit Trail, EU 39, olive | processing | Cancel, then confirm |
+| `order_maya_3` | 2 × Fjell Trek, EU 39, brown | delivered | Return, or exchange for EU 38 |
+| `order_maya_2` | 1 × Storm Step GTX, EU 38, black | shipped | Cancellation is denied |
+
+Example return conversation: “I want to return my shoes” → provide
+`order_maya_3` → “unworn” → “does not fit” → review the exact terms → click
+**Confirm return**. For exchange, say “exchange my shoes”, give the same order
+ID, condition, and replacement size 38. For cancellation, give `order_maya_1`
+and click **Confirm cancellation**. No business records change before confirmation.
+
+Use `order_missing_999` to exercise the not-found response, then correct the ID
+to resume the same intent. IDs are case-insensitive and surrounding whitespace
+is ignored; underscores must be supplied exactly. Unclear spoken IDs require
+repetition or typing, never fuzzy matching. An inaccessible order receives the
+same not-found message without disclosing another customer's records.
+
+The eligibility clock remains pinned to June 2, 2026, within the fixture
+30-day window. Return and exchange of the same line must use separate fresh
+fixtures: an active request prevents a conflicting second request. Reset in
+the UI clears conversation/proposal state, not business records. Changing the
+customer or target order invalidates the previous pending support proposal.
+
+Validation for #39 includes the full Python suite, JavaScript voice checks,
+retrieval evaluation, and browser journeys with an isolated temporary database.
+Browser automation injects recognition/synthesis events; actual microphone
+capture and audible speaker output still require a local hardware check.
+
+Latest #39 validation: 165 Python tests passed; all 30 JavaScript voice checks
+passed; retrieval evaluation reported mean expected-source recall 1.0 and
+correct abstention on the fixed 12-question set. Chrome verified six catalog
+cards, product selection, scoped demo IDs, cancellation and return confirmation,
+unknown-ID recovery, laptop/mobile overflow, and injected voice events. Live
+Ollama answered the store returns policy; an undocumented warranty question
+returned an explicit limitation without a fabricated warranty term.

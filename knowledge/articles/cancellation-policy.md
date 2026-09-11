@@ -1,12 +1,15 @@
 ---
 id: article-cancellation-policy
-version: 1
+version: 2
 language: en
 scope: public-shop
 effective_from: 2026-06-01
 effective_until: null
 title: Cancellation policy (demo)
 ---
+
+This article applies to the FUN SHOES demo store only.
+
 
 # Cancellation
 

@@ -84,7 +84,8 @@ class TraceFlowTests(unittest.TestCase):
         self.assertEqual(body["response"], "Answer")
         self.assertIsNone(body["trace_id"])
 
-    def test_expired_traces_are_not_served(self):
+    @patch("backend.agent.generate_response", return_value="Answer")
+    def test_expired_traces_are_not_served(self, generate):
         now = [1000.0]
         store = TraceStore(clock=lambda: now[0])
         main.traces = store

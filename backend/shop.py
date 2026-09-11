@@ -1,4 +1,4 @@
-"""Stepwise Shoes demo: SQLite shop fixtures and catalog services.
+"""FUN SHOES demo: SQLite shop fixtures and catalog services.
 
 Deterministic seed and reset are the same command: `python -m backend.shop seed`
 wipes all business records and restores the canonical demo state, so repeated
@@ -18,12 +18,12 @@ DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "shop.db"
 
 PRODUCTS = [
     # (id, name, brand, category)
-    ("prod_summit", "Summit Trail", "Stepwise", "trail-running"),
-    ("prod_fjell", "Fjell Trek", "Stepwise", "hiking"),
-    ("prod_storm", "Storm Step GTX", "Stepwise", "hiking"),
-    ("prod_city", "City Walk", "Stepwise", "sneakers"),
-    ("prod_swift", "Swift Run", "Stepwise", "running"),
-    ("prod_sunny", "Sunny Slide", "Stepwise", "sandals"),
+    ("prod_summit", "Summit Trail", "FUN SHOES", "trail-running"),
+    ("prod_fjell", "Fjell Trek", "FUN SHOES", "hiking"),
+    ("prod_storm", "Storm Step GTX", "FUN SHOES", "hiking"),
+    ("prod_city", "City Walk", "FUN SHOES", "sneakers"),
+    ("prod_swift", "Swift Run", "FUN SHOES", "running"),
+    ("prod_sunny", "Sunny Slide", "FUN SHOES", "sandals"),
 ]
 
 VARIANTS = [
@@ -192,12 +192,18 @@ def connect(path) -> sqlite3.Connection:
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     connection.executescript(SCHEMA)
+    # Rename existing own-brand rows without resetting orders or inventory.
+    connection.execute("UPDATE products SET brand = 'FUN SHOES' WHERE brand = 'Stepwise'")
+    connection.commit()
     return connection
 
 
 def seed(connection: sqlite3.Connection) -> None:
     """Restore the canonical deterministic demo state (also the reset command)."""
     connection.executescript("""
+        DELETE FROM support_tickets;
+        DELETE FROM exchanges;
+        DELETE FROM returns;
         DELETE FROM order_lines;
         DELETE FROM orders;
         DELETE FROM cart_lines;
@@ -304,7 +310,7 @@ class Catalog:
 def main():
     import argparse
     parser = argparse.ArgumentParser(
-        description="Seed or reset the Stepwise Shoes demo database.")
+        description="Seed or reset the FUN SHOES demo database.")
     parser.add_argument("command", choices=["seed", "reset"],
                         help="'reset' also restores the canonical state")
     arguments = parser.parse_args()

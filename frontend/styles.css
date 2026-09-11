@@ -64,3 +64,18 @@ button:hover { background: #194b37; }
   .message { max-width: 95%; }
   button { padding: 12px 16px; }
 }
+
+/* FUN SHOES storefront */
+.workspace { width: min(1180px, 100%); }
+.storefront { margin-bottom: 28px; }
+.storefront h2 { font-size: 24px; }
+.catalog-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.product-card { background: #fff; border: 1px solid #d8e1da; border-radius: 14px; padding: 20px; }
+.product-card h3 { margin: 0; font-size: 21px; }
+.product-card p { color: #52695d; margin: 4px 0 12px; }
+.product-card ul { list-style: none; padding: 0; font-size: 13px; line-height: 1.9; }
+.product-card button { width: 100%; font-size: 13px; padding: 10px; }
+.demo-help { padding: 12px 24px; font-size: 13px; }
+.demo-help summary { cursor: pointer; font-weight: 600; }
+@media (max-width: 800px) { .catalog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 540px) { .catalog-grid { grid-template-columns: 1fr; } }

@@ -119,7 +119,7 @@ class JourneyAcceptanceTests(unittest.TestCase):
                 ' "order_id": "order_maya_3", "variant_id": "var_fjell_39",'
                 ' "reason": "does_not_fit", "condition": "unworn"}}')):
             return self.client.post(
-                "/chat", json={"message": "return the fjell shoes please"})
+                "/chat", json={"message": "return order_maya_3 unworn does not fit"})
 
     def test_exchange_journey_reserves_replacement(self):
         with mock.patch("backend.agent.generate_response", return_value=(
@@ -129,7 +129,7 @@ class JourneyAcceptanceTests(unittest.TestCase):
                 ' "replacement_variant_id": "var_fjell_38",'
                 ' "condition": "unworn"}}')):
             response = self.client.post(
-                "/chat", json={"message": "exchange for a size 40 please"})
+                "/chat", json={"message": "exchange order_maya_3 unworn for size 38 please"})
         proposal = response.json()["action_proposal"]
         confirmed = self.confirm(proposal["proposal_id"])
         self.assertTrue(confirmed.json()["exchange_reference"])

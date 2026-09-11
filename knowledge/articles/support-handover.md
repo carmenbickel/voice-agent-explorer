@@ -1,12 +1,15 @@
 ---
 id: article-support-handover
-version: 1
+version: 2
 language: en
 scope: public-shop
 effective_from: 2026-06-01
 effective_until: null
 title: Support handover
 ---
+
+This article applies to the FUN SHOES demo store only.
+
 
 # Human support
 
